@@ -77,26 +77,26 @@ void init_LSM9DS1_ACC_GYRO(void)
   response = lsm9ds1_imu_data_rate_set(&dev_ctx_imu, LSM9DS1_IMU_119Hz);
   if(WICED_SUCCESS != response)
   {
-      WICED_BT_TRACE("Failed to set Gyro Data Rate\n");
+      WICED_BT_TRACE("Failed to set Gyro Data Rate\r\n");
   }
 
   response = lsm9ds1_gy_full_scale_set(&dev_ctx_imu, LSM9DS1_245dps);
   if(WICED_SUCCESS != response)
   {
-      WICED_BT_TRACE("Failed to set Gyro full scale\n");
+      WICED_BT_TRACE("Failed to set Gyro full scale\r\n");
   }
 
   response = lsm9ds1_xl_full_scale_set(&dev_ctx_imu, LSM9DS1_8g);
   if(WICED_SUCCESS != response)
   {
-      WICED_BT_TRACE("Failed to set Acc full scale\n");
+      WICED_BT_TRACE("Failed to set Acc full scale\r\n");
   }
 
   /* BDU Enable */
   lsm9ds1_block_data_update_set(&dev_ctx_mag, &dev_ctx_imu, PROPERTY_ENABLE);
   if(WICED_SUCCESS != response)
   {
-      WICED_BT_TRACE("Failed to set BDU\n");
+      WICED_BT_TRACE("Failed to set BDU\r\n");
   }
 
   /* Enable Acc interrupts to send periodic notifications */
@@ -127,13 +127,13 @@ void init_LSM9DS1_MAG(void)
     response = lsm9ds1_mag_full_scale_set(&dev_ctx_mag, LSM9DS1_16Ga);
   if(WICED_SUCCESS != response)
   {
-      WICED_BT_TRACE("Failed to set Mag full scale\n");
+      WICED_BT_TRACE("Failed to set Mag full scale\r\n");
   }
 
   response = lsm9ds1_mag_data_rate_set(&dev_ctx_mag, LSM9DS1_MAG_HP_10Hz);
   if(WICED_SUCCESS != response)
   {
-      WICED_BT_TRACE("Failed to set Mag ODR\n");
+      WICED_BT_TRACE("Failed to set Mag ODR\r\n");
   }
 }
 
@@ -146,6 +146,14 @@ void init_LSM9DS1_MAG(void)
  */
 void initialize_all_sensors (void)
 {
+    uint8_t rst;
+    /* Restore default configuration */
+    lsm9ds1_dev_reset_set(&dev_ctx_mag, &dev_ctx_imu, PROPERTY_ENABLE);
+    do 
+    {
+        lsm9ds1_dev_reset_get(&dev_ctx_mag, &dev_ctx_imu, &rst);
+    } while (rst);
+
     init_LSM9DS1_ACC_GYRO();
     init_LSM9DS1_MAG();
 }
@@ -183,7 +191,7 @@ void get_accel_val (axis3bit16_t* accel_struct)
           sign = '+';
       }
 
-      WICED_BT_TRACE("\nAcceleration X-Axis: %c%d.%02d mg\r\n", sign, (uint16_t)final_value,
+      WICED_BT_TRACE("\r\nAcceleration X-Axis: %c%d.%02d mg\r\n", sign, ABS((int16_t)final_value),
                                                ABS((int)(final_value*100)%100));
 
       final_value = lsm9ds1_from_fs8g_to_mg(accel_struct->i16bit[1]);
@@ -197,7 +205,7 @@ void get_accel_val (axis3bit16_t* accel_struct)
           sign = '+';
       }
 
-      WICED_BT_TRACE("Acceleration Y-Axis: %c%d.%02d mg\r\n", sign, (uint16_t)final_value,
+      WICED_BT_TRACE("Acceleration Y-Axis: %c%d.%02d mg\r\n", sign, ABS((int16_t)final_value),
                                                ABS((int)(final_value*100)%100));
 
       final_value = lsm9ds1_from_fs8g_to_mg(accel_struct->i16bit[2]);
@@ -211,14 +219,14 @@ void get_accel_val (axis3bit16_t* accel_struct)
           sign = '+';
       }
 
-      WICED_BT_TRACE("Acceleration Z-Axis: %c%d.%02d mg\r\n\n", sign, (uint16_t)final_value,
+      WICED_BT_TRACE("Acceleration Z-Axis: %c%d.%02d mg\r\n\n", sign, ABS((int16_t)final_value),
                                                ABS((int)(final_value*100)%100));
 
 
     }
     else
     {
-        WICED_BT_TRACE("Data Not Available\n");
+        WICED_BT_TRACE("Data Not Available\r\n");
     }
 }
 
@@ -241,14 +249,14 @@ void get_gyro_val (axis3bit16_t* gyro_struct)
     response = lsm9ds1_gy_flag_data_ready_get(&dev_ctx_imu, &value_G);
     if(WICED_SUCCESS != response)
     {
-        WICED_BT_TRACE("Failed to get Acc data ready flag\n");
+        WICED_BT_TRACE("Failed to get Acc data ready flag\r\n");
     }
 
     if (DATA_READY==value_G)
     {
       lsm9ds1_angular_rate_raw_get(&dev_ctx_imu, gyro_struct->u8bit);
 
-      final_value = lsm9ds1_from_fs245dps_to_mdps(gyro_struct->u8bit[0]);
+      final_value = lsm9ds1_from_fs245dps_to_mdps(gyro_struct->i16bit[0]);
 
       if(final_value < 0)
       {
@@ -259,10 +267,10 @@ void get_gyro_val (axis3bit16_t* gyro_struct)
           sign = '+';
       }
 
-      WICED_BT_TRACE("\nGyro X-Axis: %c%d.%02d dps\r\n", sign, (uint16_t)final_value,
+      WICED_BT_TRACE("\r\nGyro X-Axis: %c%d.%02d dps\r\n", sign, ABS((int16_t)final_value),
                                                ABS((int)(final_value*100)%100));
 
-      final_value = lsm9ds1_from_fs245dps_to_mdps(gyro_struct->u8bit[1]);
+      final_value = lsm9ds1_from_fs245dps_to_mdps(gyro_struct->i16bit[1]);
 
       if(final_value < 0)
       {
@@ -273,10 +281,10 @@ void get_gyro_val (axis3bit16_t* gyro_struct)
           sign = '+';
       }
 
-      WICED_BT_TRACE("Gyro Y-Axis: %c%d.%02d dps\r\n", sign, (uint16_t)final_value,
+      WICED_BT_TRACE("Gyro Y-Axis: %c%d.%02d dps\r\n", sign, ABS((int16_t)final_value),
                                                ABS((int)(final_value*100)%100));
 
-      final_value = lsm9ds1_from_fs245dps_to_mdps(gyro_struct->u8bit[2]);
+      final_value = lsm9ds1_from_fs245dps_to_mdps(gyro_struct->i16bit[2]);
 
       if(final_value < 0)
       {
@@ -287,7 +295,7 @@ void get_gyro_val (axis3bit16_t* gyro_struct)
           sign = '+';
       }
 
-      WICED_BT_TRACE("Gyro Z-Axis: %c%d.%02d dps\r\n\n", sign, (uint16_t)final_value,
+      WICED_BT_TRACE("Gyro Z-Axis: %c%d.%02d dps\r\n\n", sign, ABS((int16_t)final_value),
                                                ABS((int)(final_value*100)%100));
 
     }
@@ -313,12 +321,12 @@ void get_mag_val (axis3bit16_t* mag_struct)
 response =  lsm9ds1_mag_flag_data_ready_get(&dev_ctx_mag, &value_M);
 if(WICED_SUCCESS != response)
 {
-      WICED_BT_TRACE("Failed to get Gyro data ready flag\n");
+      WICED_BT_TRACE("Failed to get Gyro data ready flag\r\n");
 }
 
 if (DATA_READY==value_M)
     {
-	lsm9ds1_magnetic_raw_get(&dev_ctx_mag, mag_struct->u8bit);
+    lsm9ds1_magnetic_raw_get(&dev_ctx_mag, mag_struct->u8bit);
 
       final_value = lsm9ds1_from_fs16gauss_to_mG(mag_struct->i16bit[0]);
 
@@ -331,7 +339,7 @@ if (DATA_READY==value_M)
           sign = '+';
       }
 
-      WICED_BT_TRACE("\nMag X-Axis: %c%d.%02d mG\r\n", sign, (uint16_t)final_value,
+      WICED_BT_TRACE("\r\nMag X-Axis: %c%d.%02d mG\r\n", sign, ABS((int16_t)final_value),
                                                ABS((int)(final_value*100)%100));
 
       final_value = lsm9ds1_from_fs16gauss_to_mG(mag_struct->i16bit[1]);
@@ -345,7 +353,7 @@ if (DATA_READY==value_M)
           sign = '+';
       }
 
-      WICED_BT_TRACE("Mag Y-Axis: %c%d.%02d mG\r\n", sign, (uint16_t)final_value,
+      WICED_BT_TRACE("Mag Y-Axis: %c%d.%02d mG\r\n", sign, ABS((int16_t)final_value),
                                                ABS((int)(final_value*100)%100));
 
       final_value = lsm9ds1_from_fs16gauss_to_mG(mag_struct->i16bit[2]);
@@ -359,7 +367,7 @@ if (DATA_READY==value_M)
           sign = '+';
       }
 
-      WICED_BT_TRACE("Mag Z-Axis: %c%d.%02d mG\r\n\n", sign, (uint16_t)final_value,
+      WICED_BT_TRACE("Mag Z-Axis: %c%d.%02d mG\r\n\n", sign, ABS((int16_t)final_value),
                                                ABS((int)(final_value*100)%100));
     }
 }
@@ -389,8 +397,8 @@ void read_all_sensors_update_gatt()
  */
 void motion_sensor_acc_interrupt_enable(void)
 {
-	lsm9ds1_pin_int1_route_t int1_route = {0, 0, 0, 0, 0, 0, 1, 0};
-	lsm9ds1_pin_int1_route_set(&dev_ctx_imu, int1_route);
+    lsm9ds1_pin_int1_route_t int1_route = {0, 0, 0, 0, 0, 0, 1, 0};
+    lsm9ds1_pin_int1_route_set(&dev_ctx_imu, int1_route);
 }
 
 /**
@@ -402,9 +410,9 @@ void motion_sensor_acc_interrupt_enable(void)
  */
 void motion_sensor_acc_interrupt_disable(void)
 {
-	lsm9ds1_pin_int1_route_t int1_route = {0, 0, 0, 0, 0, 0, 0, 0};
+    lsm9ds1_pin_int1_route_t int1_route = {0, 0, 0, 0, 0, 0, 0, 0};
 
-	lsm9ds1_pin_int1_route_set(&dev_ctx_imu, int1_route);
+    lsm9ds1_pin_int1_route_set(&dev_ctx_imu, int1_route);
 }
 
 /**

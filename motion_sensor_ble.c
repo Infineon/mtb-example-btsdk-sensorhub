@@ -50,6 +50,9 @@ uint8_t passkey_itr = 0;
 
 /* Holds the host info saved in the NVRAM */
 host_info_t motion_sensor_hostinfo;
+
+/* Holds the connection ID */
+uint8_t conn_id = 0;
 /******************************************************************************
 *                                Function Definitions
 ******************************************************************************/
@@ -73,7 +76,7 @@ wiced_result_t motion_sensor_management_cback(wiced_bt_management_evt_t event,
     uint8_t                             bytes_written = 0;
     wiced_result_t                      rc = WICED_ERROR;
 
-    WICED_BT_TRACE("Motion Sensor management cback: %d\n", event);
+    WICED_BT_TRACE("Motion Sensor management cback: %d\r\n", event);
 
     switch(event)
     {
@@ -94,7 +97,7 @@ wiced_result_t motion_sensor_management_cback(wiced_bt_management_evt_t event,
             break;
 
         case BTM_PASSKEY_NOTIFICATION_EVT:
-            WICED_BT_TRACE("PassKey Notification. BDA %B, Key %d \r\n",
+            WICED_BT_TRACE("PassKey Notification. BDA [ %B], Key %d \r\n",
                     p_event_data->user_passkey_notification.bd_addr,
                     p_event_data->user_passkey_notification.passkey);
 
@@ -144,25 +147,23 @@ wiced_result_t motion_sensor_management_cback(wiced_bt_management_evt_t event,
         case BTM_PAIRING_COMPLETE_EVT:
             p_info =  &p_event_data->pairing_complete.pairing_complete_info.ble;
 
-            WICED_BT_TRACE("Pairing Complete: %d\n", p_info->reason);
-
-            /* Process SMP bond result */
-            motion_sensor_smp_bond_result(p_info->status);
-
+            WICED_BT_TRACE("Pairing Complete: %d\r\n", p_info->reason);
             break;
 
         case BTM_PAIRED_DEVICE_LINK_KEYS_UPDATE_EVT:
             /* save keys to NVRAM */
             motion_sensor_hostinfo.link_keys = p_event_data->paired_device_link_keys_update;
 
-            WICED_BT_TRACE("Link keys update Address: %B, Address type: %d\n", motion_sensor_hostinfo.link_keys.bd_addr,
+            WICED_BT_TRACE("Link keys update Address: [ %B], Address type: %d\n", motion_sensor_hostinfo.link_keys.bd_addr,
                                                        motion_sensor_hostinfo.link_keys.key_data.static_addr_type);
 
             bytes_written = wiced_hal_write_nvram(MOTION_SENSOR_VS_ID,
             sizeof(motion_sensor_hostinfo), (uint8_t*)&motion_sensor_hostinfo, &rc);
 
-            WICED_BT_TRACE("NVRAM write:%d rc:%d\n\r", bytes_written, rc);
-
+            if(0 == bytes_written)
+            {
+                WICED_BT_TRACE("0 Bytes written to NVRAM\r\n");
+            }
             break;
 
         case  BTM_PAIRED_DEVICE_LINK_KEYS_REQUEST_EVT:
@@ -172,7 +173,7 @@ wiced_result_t motion_sensor_management_cback(wiced_bt_management_evt_t event,
 
             p_event_data->paired_device_link_keys_request = motion_sensor_hostinfo.link_keys;
 
-            WICED_BT_TRACE("keys read from NVRAM %B result: %d \n",
+            WICED_BT_TRACE("keys read from NVRAM [ %B] result: %d \n",
                            (uint8_t*)&motion_sensor_hostinfo.link_keys, result);
 
             break;
@@ -184,15 +185,15 @@ wiced_result_t motion_sensor_management_cback(wiced_bt_management_evt_t event,
             bytes_written = wiced_hal_write_nvram(MOTION_SENSOR_VS_ID,
               sizeof(motion_sensor_hostinfo), (uint8_t*)&motion_sensor_hostinfo, &rc);
 
-            WICED_BT_TRACE("NVRAM write:%d rc:%d\n\r", bytes_written, rc);
-
+            if(0 == bytes_written)
+            {
+                WICED_BT_TRACE("0 Bytes written to NVRAM\r\n");
+            }
             break;
 
         case  BTM_LOCAL_IDENTITY_KEYS_REQUEST_EVT:
             wiced_hal_read_nvram(MOTION_SENSOR_VS_ID, sizeof(motion_sensor_hostinfo),
                                    (uint8_t*)&motion_sensor_hostinfo, &result);
-
-            WICED_BT_TRACE("Host info read from NVRAM result: %d \n",  result);
 
             /* read keys from NVRAM */
             if (1 == motion_sensor_hostinfo.dev_prebonded)
@@ -200,35 +201,55 @@ wiced_result_t motion_sensor_management_cback(wiced_bt_management_evt_t event,
                 p_event_data->local_identity_keys_request =
                                               motion_sensor_hostinfo.local_keys;
 
-                WICED_BT_TRACE("local keys read from NVRAM result: %d \n", result);
+                WICED_BT_TRACE("local keys read from NVRAM result: %d \r\n", result);
             }
             else
             {
                 result = WICED_BT_ERROR;
-                WICED_BT_TRACE("Device not bonded\n");
+                WICED_BT_TRACE("Device not bonded\r\n");
             }
 
             break;
 
         case BTM_ENCRYPTION_STATUS_EVT:
 
-            WICED_BT_TRACE("Encryption Status Event: bd (%B) res %d\n",
-            		p_event_data->encryption_status.bd_addr,
-					p_event_data->encryption_status.result);
+            WICED_BT_TRACE("Encryption Status Event: bd [ %B] res %d\r\n",
+                    p_event_data->encryption_status.bd_addr,
+                    p_event_data->encryption_status.result);
+
+            /* Check if the encrypted device was prebonded and then restore the CCCD value */
+            if(WICED_SUCCESS == p_event_data->encryption_status.result && 0 != motion_sensor_hostinfo.dev_prebonded)
+            {
+                /* Restore CCCD value for bonded devices */
+                app_motion_sensor_motion_sensor_notify_client_char_config[0] = 
+                    (motion_sensor_hostinfo.sensor_value_characteristic_client_configuration & 0x00FF);
+
+                app_motion_sensor_motion_sensor_notify_client_char_config[1] = 
+                    ((motion_sensor_hostinfo.sensor_value_characteristic_client_configuration >> 8) & 0x00FF);
+
+                if(GATT_CLIENT_CONFIG_NOTIFICATION ==
+                   app_motion_sensor_motion_sensor_notify_client_char_config[0])
+                {
+                    motion_sensor_acc_interrupt_enable();
+                }
+            }
+
+            /* Process SMP bond result */
+            motion_sensor_smp_bond_result(p_info->status);
 
             break;
 
         case BTM_BLE_ADVERT_STATE_CHANGED_EVT:
 
-            WICED_BT_TRACE("Advertisement State Change: %d\n", p_event_data->ble_advert_state_changed);
+            WICED_BT_TRACE("Advertisement State Change: %d\r\n", p_event_data->ble_advert_state_changed);
 
             break;
 
         case BTM_BLE_CONNECTION_PARAM_UPDATE:
             WICED_BT_TRACE("Connection parameters status:%d\r\n"
                     "Connection Interval: %d intervals\r\n"
-                    "Connection Latency: %d intervals\n\rConnection"
-                    "Timeout: %d ms\n\r",
+                    "Connection Latency: %d intervals\r\nConnection"
+                    "Timeout: %d ms\r\n",
                     p_event_data->ble_connection_param_update.status,
                     p_event_data->ble_connection_param_update.conn_interval,
                     p_event_data->ble_connection_param_update.conn_latency,
@@ -257,12 +278,12 @@ void motion_sensor_application_init(void)
     wiced_result_t result, timer_result;
     wiced_bt_device_address_t  local_device_bd_addr;
 
-    WICED_BT_TRACE("Discover this device with the name: \"%s\"\r\n",
+    WICED_BT_TRACE("\r\nDiscover this device with the name: \"%s\"\r\n",
                     wiced_bt_cfg_settings.device_name);
 
     wiced_bt_dev_read_local_addr(local_device_bd_addr);
 
-    WICED_BT_TRACE("Bluetooth Device Address: %B \r\n",
+    WICED_BT_TRACE("Bluetooth Device Address: [ %B] \r\n\n",
                     local_device_bd_addr);
 
     /* Initialize PUART for input */
@@ -283,36 +304,35 @@ void motion_sensor_application_init(void)
     if(WICED_BT_SUCCESS != wiced_init_timer(&notification_timer_handle,
            &notification_timer_callback, 0, WICED_MILLI_SECONDS_PERIODIC_TIMER))
     {
-        WICED_BT_TRACE("Notification timer failed\n");
+        WICED_BT_TRACE("Notification timer failed\r\n");
     }
 
     if(WICED_BT_SUCCESS != wiced_init_timer(&idle_timer_handle, &idle_timer_callback,
                                                         0, WICED_SECONDS_TIMER))
     {
-        WICED_BT_TRACE("Idle timer failed\n");
+        WICED_BT_TRACE("Idle timer failed\r\n");
     }
 
     /* Read data from NVRAM in case data is available */
     if(0 == wiced_hal_read_nvram(MOTION_SENSOR_VS_ID, sizeof(motion_sensor_hostinfo),
                                     (uint8_t*)&motion_sensor_hostinfo, &result))
     {
-        WICED_BT_TRACE("NVRAM read failed\n");
+        WICED_BT_TRACE("NVRAM read failed\r\n");
     }
 
-    WICED_BT_TRACE("Host info read from NVRAM result: %d \n",  result);
+    WICED_BT_TRACE("Host info read from NVRAM result: %d \r\n",  result);
 
     /* Register with stack to receive GATT callback */
     gatt_status = wiced_bt_gatt_register(motion_sensor_gatts_callback);
-    WICED_BT_TRACE("wiced_bt_gatt_register: %d\n", gatt_status);
+    WICED_BT_TRACE("wiced_bt_gatt_register: %d\r\n", gatt_status);
 
     /*  Tell stack to use our GATT database */
-    WICED_BT_TRACE("GATT DB length: %d\n", gatt_database_len);
+    WICED_BT_TRACE("GATT DB length: %d\r\n", gatt_database_len);
     gatt_status =  wiced_bt_gatt_db_init(gatt_database, gatt_database_len);
-    WICED_BT_TRACE("wiced_bt_gatt_db_init %d\n", gatt_status);
+    WICED_BT_TRACE("wiced_bt_gatt_db_init %d\r\n", gatt_status);
 
     /* Allow peer to pair */
     wiced_bt_set_pairable_mode(WICED_TRUE, 0);
-    WICED_BT_TRACE("Allow Pairing\n");
 
     /* Initialize GPIO and LSM9DS1 sensor */
 
@@ -326,20 +346,20 @@ void motion_sensor_application_init(void)
      /* Set the advertising params and make the device discoverable */
        motion_sensor_set_advertisement_data();
        result =  wiced_bt_start_advertisements(BTM_BLE_ADVERT_UNDIRECTED_HIGH,
-                                                         BLE_ADDR_PUBLIC, NULL);
-       WICED_BT_TRACE("wiced_bt_start_advertisements %d\n", result);
+                                                         NULL, NULL);
+       WICED_BT_TRACE("wiced_bt_start_advertisements %d\r\n", result);
   }
  /* If Device not currently connected but bonded device present do directed advertisement */
    else
     {
         /* Set the advertising params and make the device discoverable */
-        WICED_BT_TRACE("Address: %B, Address type: %d\n", motion_sensor_hostinfo.link_keys.bd_addr,
+        WICED_BT_TRACE("Address: [ %B], Address type: %d\r\n", motion_sensor_hostinfo.link_keys.bd_addr,
                                            motion_sensor_hostinfo.link_keys.key_data.static_addr_type);
 
         result =  wiced_bt_start_advertisements(BTM_BLE_ADVERT_DIRECTED_LOW,
                 motion_sensor_hostinfo.link_keys.key_data.static_addr_type,  motion_sensor_hostinfo.link_keys.bd_addr);
 
-        WICED_BT_TRACE("wiced_bt_start_advertisements Directed %d\n", result);
+        WICED_BT_TRACE("wiced_bt_start_advertisements Directed %d\r\n", result);
     }
 }
 
@@ -359,7 +379,7 @@ wiced_bt_gatt_status_t motion_sensor_gatts_callback(wiced_bt_gatt_evt_t event,
 {
     wiced_bt_gatt_status_t result = WICED_BT_GATT_INVALID_PDU;
 
-    WICED_BT_TRACE("GATT EVT: %d\n", event);
+    WICED_BT_TRACE("GATT EVT: %d\r\n", event);
     switch(event)
     {
     case GATT_CONNECTION_STATUS_EVT:
@@ -416,20 +436,19 @@ wiced_bt_gatt_status_t motion_sensor_gatts_conn_status_cb(
 wiced_bt_gatt_status_t motion_sensor_gatts_connection_up(wiced_bt_gatt_connection_status_t *p_status)
 {
     wiced_result_t result;
-    uint8_t bytes_written = 0;
     wiced_result_t rc;
 
-    WICED_BT_TRACE("motion sensor connection up %B id:%d\n", p_status->bd_addr,
+    WICED_BT_TRACE("Motion Sensor connected with [ %B] id:%d\r\n", p_status->bd_addr,
                                                              p_status->conn_id);
 
     /* Update the connection handler.  Save address of the connected device. */
-    motion_sensor_hostinfo.conn_id = p_status->conn_id;
+    conn_id = p_status->conn_id;
 
     /* Stop advertising */
     result =  wiced_bt_start_advertisements(BTM_BLE_ADVERT_OFF, BLE_ADDR_PUBLIC,
                                                                           NULL);
 
-    WICED_BT_TRACE("Stopping Advertisements %d\n", result);
+    WICED_BT_TRACE("Stopping Advertisements %d\r\n", result);
 
     /* Update connection parameters to 100 ms for SDS */
     wiced_bt_l2cap_update_ble_conn_params(p_status->bd_addr, CONN_INTERVAL,
@@ -454,32 +473,35 @@ wiced_bt_gatt_status_t motion_sensor_gatts_connection_down(
     BD_ADDR bdaddr;
     memcpy(bdaddr, motion_sensor_hostinfo.link_keys.bd_addr, sizeof(bdaddr));
 
-    WICED_BT_TRACE("connection_down %B conn_id:%d reason:%d\n",
-    		bdaddr, p_status->conn_id, p_status->reason);
+    WICED_BT_TRACE("Motion Sensor disconnected from [ %B] conn_id:%d reason:%d\r\n",
+            bdaddr, p_status->conn_id, p_status->reason);
 
     /* Resetting the device info */
-    motion_sensor_hostinfo.conn_id = 0;
+    conn_id = 0;
 
     /* If device bonded then do directed advertisement */
     if(1 == motion_sensor_hostinfo.dev_prebonded)
     {
         /* Set the advertising params and make the device discoverable */
-        WICED_BT_TRACE("Address: %B, Address type: %d\n",
+        WICED_BT_TRACE("Address: [ %B], Address type: %d\r\n",
            motion_sensor_hostinfo.link_keys.bd_addr, motion_sensor_hostinfo.link_keys.key_data.static_addr_type);
 
         result =  wiced_bt_start_advertisements(BTM_BLE_ADVERT_DIRECTED_HIGH,
            motion_sensor_hostinfo.link_keys.key_data.static_addr_type, bdaddr);
 
-        WICED_BT_TRACE("wiced_bt_start_advertisements Directed %d\n", result);
+        WICED_BT_TRACE("wiced_bt_start_advertisements Directed %d\r\n", result);
     }
     /* If device not bonded then do undirected advertisement */
     else
     {
         result = wiced_bt_start_advertisements(BTM_BLE_ADVERT_UNDIRECTED_LOW,
-                                                         BLE_ADDR_PUBLIC, NULL);
+                                                         NULL, NULL);
 
-        WICED_BT_TRACE("wiced_bt_start_advertisements %d\n", result);
+        WICED_BT_TRACE("wiced_bt_start_advertisements %d\r\n", result);
     }
+
+    /* Disable the interrupt */
+    motion_sensor_acc_interrupt_disable();
 
     return WICED_BT_SUCCESS;
 }
@@ -497,7 +519,7 @@ wiced_bt_gatt_status_t motion_sensor_gatts_req_cb(wiced_bt_gatt_attribute_reques
 {
     wiced_bt_gatt_status_t result = WICED_BT_GATT_INVALID_PDU;
 
-    WICED_BT_TRACE("wiced_gatts_req_cb. connection %d, type %d\n",
+    WICED_BT_TRACE("wiced_gatts_req_cb. connection %d, type %d\r\n",
                                          p_data->conn_id, p_data->request_type);
 
     /* Check the type of request and service it by function calls */
@@ -543,7 +565,7 @@ gatt_db_lookup_table_t * motion_sensor_get_attribute(uint16_t handle)
             return (&app_gatt_db_ext_attr_tbl[array_index]);
         }
     }
-    WICED_BT_TRACE("attr not found:%x\n", handle);
+    WICED_BT_TRACE("attr not found:%x\r\n", handle);
     return NULL;
 }
 
@@ -567,13 +589,13 @@ wiced_bt_gatt_status_t motion_sensor_gatts_req_read_handler(uint16_t conn_id,
     /* Get the right address for the handle in Gatt DB */
     if (NULL == (puAttribute = motion_sensor_get_attribute(p_read_data->handle)))
     {
-        WICED_BT_TRACE("read_hndlr attr not found hdl:%x\n", p_read_data->handle);
+        WICED_BT_TRACE("read_hndlr attr not found hdl:%x\r\n", p_read_data->handle);
         return WICED_BT_GATT_INVALID_HANDLE;
     }
 
     attr_len_to_copy = puAttribute->cur_len;
 
-    WICED_BT_TRACE("read_hndlr conn_id:%d hdl:%x offset:%d len:%d\n",
+    WICED_BT_TRACE("read_hndlr conn_id:%d hdl:%x offset:%d len:%d\r\n",
            conn_id, p_read_data->handle, p_read_data->offset, attr_len_to_copy);
 
     /* If Sensor value requested then update the Gatt DB with latest value */
@@ -625,7 +647,7 @@ wiced_bt_gatt_status_t motion_sensor_gatts_req_write_handler(uint16_t conn_id,
     uint8_t bytes_written = 0;
     wiced_result_t rc;
 
-    WICED_BT_TRACE("write_handler: conn_id:%d hdl:0x%x prep:%d offset:%d len:%d\n",
+    WICED_BT_TRACE("write_handler: conn_id:%d hdl:0x%x prep:%d offset:%d len:%d\r\n",
         conn_id, p_data->handle, p_data->is_prep, p_data->offset, p_data->val_len);
 
     switch (p_data->handle)
@@ -655,11 +677,11 @@ wiced_bt_gatt_status_t motion_sensor_gatts_req_write_handler(uint16_t conn_id,
             if(WICED_BT_SUCCESS != wiced_start_timer(&notification_timer_handle,
                                                            NOTFICATION_TIME_MS))
             {
-                WICED_BT_TRACE("Notification timer start failed\n");
+                WICED_BT_TRACE("Notification timer start failed\r\n");
             }
             if(WICED_BT_SUCCESS != wiced_start_timer(&idle_timer_handle, IDLE_TIME_S))
             {
-                WICED_BT_TRACE("Idle timer start failed\n");
+                WICED_BT_TRACE("Idle timer start failed\r\n");
             }
         }
         else
@@ -669,9 +691,10 @@ wiced_bt_gatt_status_t motion_sensor_gatts_req_write_handler(uint16_t conn_id,
 
         bytes_written = wiced_hal_write_nvram(MOTION_SENSOR_VS_ID,
         sizeof(motion_sensor_hostinfo), (uint8_t*)&motion_sensor_hostinfo, &rc);
-
-        WICED_BT_TRACE("NVRAM write:%d rc:%d\n\r", bytes_written, rc);
-
+        if(0 == bytes_written)
+        {
+            WICED_BT_TRACE("0 Bytes written to NVRAM\r\n");
+        }
         break;
 
         default:
@@ -715,7 +738,10 @@ void motion_sensor_smp_bond_result(uint8_t result)
         bytes_written = wiced_hal_write_nvram(MOTION_SENSOR_VS_ID,
         sizeof(motion_sensor_hostinfo), (uint8_t*)&motion_sensor_hostinfo, &rc);
 
-        WICED_BT_TRACE("NVRAM write:%d rc:%d\n\r", bytes_written, rc);
+        if(0 == bytes_written)
+        {
+            WICED_BT_TRACE("0 Bytes written to NVRAM\r\n");
+        }
     }
 }
 
@@ -728,7 +754,7 @@ void motion_sensor_smp_bond_result(uint8_t result)
  */
 wiced_bt_gatt_status_t motion_sensor_gatts_req_mtu_handler(uint16_t conn_id, uint16_t mtu)
 {
-    WICED_BT_TRACE("req_mtu: %d\n", mtu);
+    WICED_BT_TRACE("req_mtu: %d\r\n", mtu);
     return WICED_BT_GATT_SUCCESS;
 }
 
@@ -763,7 +789,7 @@ void motion_sensor_set_advertisement_data(void)
 
     if(WICED_BT_SUCCESS != wiced_bt_ble_set_raw_advertisement_data(num_elem, adv_elem))
     {
-        WICED_BT_TRACE("Set advertisement data failed\n");
+        WICED_BT_TRACE("Set advertisement data failed\r\n");
     }
 }
 
@@ -779,18 +805,18 @@ void send_sensor_value_notification()
 {
     if((GATT_CLIENT_CONFIG_NOTIFICATION ==
         motion_sensor_hostinfo.sensor_value_characteristic_client_configuration)
-                                       && (0 != motion_sensor_hostinfo.conn_id))
+                                       && (0 != conn_id))
     {
-       WICED_BT_TRACE("Sending Notification\n");
+       WICED_BT_TRACE("Sending Notification\r\n");
        read_all_sensors_update_gatt();
 
        if(WICED_BT_GATT_SUCCESS != wiced_bt_gatt_send_notification(
-                                  motion_sensor_hostinfo.conn_id,
+                                  conn_id,
                                   HDLC_MOTION_SENSOR_MOTION_SENSOR_NOTIFY_VALUE,
                                   app_gatt_db_ext_attr_tbl[2].cur_len,
                                   app_gatt_db_ext_attr_tbl[2].p_data))
        {
-           WICED_BT_TRACE("Sending sensor value notification failed\n");
+           WICED_BT_TRACE("Sending sensor value notification failed\r\n");
        }
     }
 }
@@ -806,7 +832,7 @@ void send_sensor_value_notification()
  */
 void motion_sensor_interrupt_handler(void* user_data, uint8_t value)
 {
-    WICED_BT_TRACE("Interrupt Handler\n");
+    WICED_BT_TRACE("Interrupt Handler\r\n");
 
     /* Disable the GPIO interrupt */
     DISABLE_GPIO_INTERRUPT;
@@ -814,7 +840,7 @@ void motion_sensor_interrupt_handler(void* user_data, uint8_t value)
     /* Check if device is still connected and CCCD==1. If not then disable the
      * interrupt on the sensor */
     if((0 == motion_sensor_hostinfo.sensor_value_characteristic_client_configuration)
-                                         || (0 == motion_sensor_hostinfo.conn_id))
+                                         || (0 == conn_id))
     {
         motion_sensor_acc_interrupt_disable();
     }
@@ -824,11 +850,11 @@ void motion_sensor_interrupt_handler(void* user_data, uint8_t value)
        if(WICED_BT_SUCCESS != wiced_start_timer(&notification_timer_handle,
                                                            NOTFICATION_TIME_MS))
        {
-           WICED_BT_TRACE("Notification timer start failed\n");
+           WICED_BT_TRACE("Notification timer start failed\r\n");
        }
        if(WICED_BT_SUCCESS != wiced_start_timer(&idle_timer_handle, IDLE_TIME_S))
        {
-           WICED_BT_TRACE("Idle timer start failed\n");
+           WICED_BT_TRACE("Idle timer start failed\r\n");
        }
     }
 }
@@ -867,11 +893,11 @@ void idle_timer_callback(uint32_t arg)
     {
         if(WICED_BT_SUCCESS != wiced_stop_timer(&notification_timer_handle))
         {
-            WICED_BT_TRACE("Notification timer stop failed\n");
+            WICED_BT_TRACE("Notification timer stop failed\r\n");
         }
         if(WICED_BT_SUCCESS != wiced_stop_timer(&idle_timer_handle))
         {
-            WICED_BT_TRACE("Idle timer stop failed\n");
+            WICED_BT_TRACE("Idle timer stop failed\r\n");
         }
         ENABLE_GPIO_INTERRUPT;
     }
@@ -882,16 +908,16 @@ void idle_timer_callback(uint32_t arg)
         {
             if(WICED_BT_SUCCESS != wiced_stop_timer(&idle_timer_handle))
             {
-                WICED_BT_TRACE("Idle timer stop failed\n");
+                WICED_BT_TRACE("Idle timer stop failed\r\n");
             }
         }
         if(WICED_BT_SUCCESS != wiced_start_timer(&idle_timer_handle, 10))
         {
-            WICED_BT_TRACE("Idle timer start failed\n");
+            WICED_BT_TRACE("Idle timer start failed\r\n");
         }
         else
         {
-            WICED_BT_TRACE("idle timer re started \n");
+            WICED_BT_TRACE("idle timer re started \r\n");
         }
     }
 }
@@ -908,20 +934,23 @@ void button_cb (void* user_data, uint8_t value)
     wiced_result_t result;
     uint16_t written_byte;
 
-    if(0 == motion_sensor_hostinfo.conn_id)
+    if(0 == conn_id)
     {
-        memset(motion_sensor_hostinfo.link_keys.bd_addr, 0, 6);
+        memset(&motion_sensor_hostinfo, 0, sizeof(motion_sensor_hostinfo));
         wiced_hal_write_nvram(MOTION_SENSOR_VS_ID, sizeof(motion_sensor_hostinfo),
-                                                                    0, &result);
+                (uint8_t *)&motion_sensor_hostinfo, &result);
 
-        WICED_BT_TRACE("Peer bond data removed\n");
+        WICED_BT_TRACE("Peer bond data removed\r\n");
+
+        /* Disable the interrupt */
+        motion_sensor_acc_interrupt_disable();
 
         /* Set the advertising params and make the device discoverable */
         motion_sensor_set_advertisement_data();
 
         result =  wiced_bt_start_advertisements(BTM_BLE_ADVERT_UNDIRECTED_HIGH,
-                                                         BLE_ADDR_PUBLIC, NULL);
-        WICED_BT_TRACE("wiced_bt_start_advertisements %d\n", result);
+                                                         NULL, NULL);
+        WICED_BT_TRACE("wiced_bt_start_advertisements %d\r\n", result);
     }
 }
 

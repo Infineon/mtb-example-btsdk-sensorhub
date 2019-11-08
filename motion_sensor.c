@@ -62,14 +62,14 @@ void application_start(void)
     /* Route Trace messages to PUART */
     wiced_set_debug_uart(WICED_ROUTE_DEBUG_TO_PUART);
 
-    WICED_BT_TRACE("\n\r-------------------------------------------------\r\n\n"
+    WICED_BT_TRACE("\r\n-------------------------------------------------\r\n\n"
                        "                  Motion Sensor                  \r\n\n"
-                       "-------------------------------------------------\n\r");
+                       "-------------------------------------------------\r\n");
 
     /* Register call back and configuration with stack */
      if(WICED_BT_SUCCESS != wiced_bt_stack_init(motion_sensor_management_cback ,
                      &wiced_bt_cfg_settings, wiced_bt_cfg_buf_pools))
      {
-         WICED_BT_TRACE("Stack Init failed\n");
+         WICED_BT_TRACE("Stack Init failed\r\n");
      }
 }

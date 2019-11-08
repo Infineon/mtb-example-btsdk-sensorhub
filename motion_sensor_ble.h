@@ -49,7 +49,6 @@
 /* Host information saved in  NVRAM */
 typedef PACKED struct
 {
-	uint16_t  conn_id;                  /* connection ID referenced by the stack */
     uint8_t   dev_prebonded;      /* stay connected or disconnect after all messages are sent */
     uint16_t  sensor_value_characteristic_client_configuration;  /* Current value of the client configuration descriptor */
     wiced_bt_device_link_keys_t link_keys; /* Value of the link keys */
@@ -60,7 +59,7 @@ typedef PACKED struct
 *                             Function prototypes
 ******************************************************************************/
 wiced_result_t motion_sensor_management_cback(wiced_bt_management_evt_t event,
-		                          wiced_bt_management_evt_data_t *p_event_data);
+                                  wiced_bt_management_evt_data_t *p_event_data);
 
 void motion_sensor_application_init(void);
 
@@ -69,32 +68,32 @@ void motion_sensor_passkey_reply (uint32_t passkey);
 void motion_sensor_smp_bond_result(uint8_t result);
 
 wiced_bt_gatt_status_t motion_sensor_gatts_callback(wiced_bt_gatt_evt_t event,
-		                                    wiced_bt_gatt_event_data_t *p_data);
+                                            wiced_bt_gatt_event_data_t *p_data);
 
 void motion_sensor_set_advertisement_data(void);
 
 wiced_bt_gatt_status_t motion_sensor_gatts_conn_status_cb(
-		                           wiced_bt_gatt_connection_status_t *p_status);
+                                   wiced_bt_gatt_connection_status_t *p_status);
 
 wiced_bt_gatt_status_t motion_sensor_gatts_connection_up(
-		                           wiced_bt_gatt_connection_status_t *p_status);
+                                   wiced_bt_gatt_connection_status_t *p_status);
 
 wiced_bt_gatt_status_t motion_sensor_gatts_connection_down(
-		                           wiced_bt_gatt_connection_status_t *p_status);
+                                   wiced_bt_gatt_connection_status_t *p_status);
 
 wiced_bt_gatt_status_t motion_sensor_gatts_req_cb(
-		                             wiced_bt_gatt_attribute_request_t *p_data);
+                                     wiced_bt_gatt_attribute_request_t *p_data);
 
 gatt_db_lookup_table_t * motion_sensor_get_attribute(uint16_t handle);
 
 wiced_bt_gatt_status_t motion_sensor_gatts_req_read_handler(uint16_t conn_id,
-		                                    wiced_bt_gatt_read_t * p_read_data);
+                                            wiced_bt_gatt_read_t * p_read_data);
 
 wiced_bt_gatt_status_t motion_sensor_gatts_req_write_handler(uint16_t conn_id,
-		                                        wiced_bt_gatt_write_t * p_data);
+                                                wiced_bt_gatt_write_t * p_data);
 
 wiced_bt_gatt_status_t motion_sensor_gatts_req_mtu_handler(uint16_t conn_id,
-		                                                          uint16_t mtu);
+                                                                  uint16_t mtu);
 
 void send_sensor_value_notification();
 

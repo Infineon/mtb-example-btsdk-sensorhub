@@ -7,13 +7,12 @@ This example demonstrates using the motion sensor with the CYW208xx and CYW207xx
 - [ModusToolbox™ IDE](https://www.cypress.com/products/modustoolbox-software-environment) v2.0  
 - Programming Language: C
 - Associated Parts: 
-[CYW20819](https://www.cypress.com/datasheet/CYW20819), [CYW20820](https://www.cypress.com/datasheet/CYW20820), [CYW20719](https://www.cypress.com/datasheet/CYW20719), [CYW20721](https://www.cypress.com/datasheet/CYW20721)
+[CYW20819](https://www.cypress.com/datasheet/CYW20819), [CYW20820](https://www.cypress.com/datasheet/CYW20820), [CYW20719](https://www.cypress.com/documentation/datasheets/cyw20719-enhanced-low-power-bredrble-bluetooth-50-soc)
 
 ## Supported Kits
 -  [CYW920819EVB-02 Evaluation Kit](http://www.cypress.com/CYW920819EVB-02) 
 -  [CYW920820EVB-02 Evaluation kit](http://www.cypress.com/CYW920820EVB-02)  
--  [CYW920719B2Q40EVB-01 Evaluation kit](http://www.cypress.com/CYW920719B2Q40EVB-01)
--  [CYW920721EVB-01 Evaluation kit](http://www.cypress.com/CYW920721EVB-01)
+-  [CYW920719B2Q40EVB-01 Evaluation kit](https://community.cypress.com/docs/DOC-17736)
 
 Simply pick the supported kit in the IDE's 'New Application' wizard. When you select a supported kit in the new application wizard, the example is reconfigured automatically to work with the kit. 
 
@@ -165,7 +164,7 @@ See [Importing Code Example into ModusToolbox IDE - KBA225201](https://community
 
 ## Design and Implementation
 
-This code example implements a GATT Server and GAP Peripheral role on the CYW208xx/CYW207xx device. Once the device is powered ON, it boots up and does the following things:
+This code example implements a GATT Server and GAP Peripheral role on the CYW208xx/CYW207xx device. This application is designed for 1 bonded device. Once the device is powered ON, it boots up and does the following things:
 
 1.	Initializes the Bluetooth stack
 2.	Initializes PUART for input
@@ -245,11 +244,13 @@ The following images show the code flow.
 
 ## Document History
 
-Document Title: DMS title here
+Document Title: *CE228683* - *mtb-example-btsdk-motion-sensor*
 
-| Revision | Submission Date | Description of Change |
-| -------- | --------------- | --------------------- |
-| **       |    10/16/1019   | New code example      |
+| Version | Description of Change |
+| ------- | --------------------- |
+| 1.0.0   | New code example      |
+| 1.1.0   | Reconnection issue resolved      |
+
 
 
 All other trademarks or registered trademarks referenced herein are the property of their respective owners.

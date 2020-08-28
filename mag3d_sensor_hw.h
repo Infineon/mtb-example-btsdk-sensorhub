@@ -1,6 +1,7 @@
-/** motion_sensor_hw.h
+/** mag3d_sensor_hw.h
  *
- * This file provides definitions and function prototypes for Motion Sensor.
+ * This file provides definitions and function prototypes for Magnetic 3DSensor
+ * device
  */
 
 /*
@@ -36,37 +37,87 @@
  * so agrees to indemnify Cypress against all liability.
  */
 
-#ifndef MOTION_SENSOR_HW_H
-#define MOTION_SENSOR_HW_H
 
-#include "lsm9ds1_drivers/lsm9ds1_reg.h"
+#ifndef MAG3D_SENSOR_HW_H_
+#define MAG3D_SENSOR_HW_H_
+
 /******************************************************************************
  *                                Constants
  ******************************************************************************/
-#define DELAY_FOR_SENSOR_WAKEUP (10) /* 10 ms */
 
-#define XL_THRESHOLD (50)
+#define MAG3D_SLAVE_ADDRESS             (0x5E)      /* Sensor slave address */
+#define MAG3D_INT_SCL                   (WICED_P28) /* GPIO for I2C clock */
+#define MAG3D_ADD_SDA                   (WICED_P29) /* GPIO for I2C data */
 
-#define DATA_READY (1)
+/* Register masks for write registers */
+#define MAG3D_CONFIG_REG1_MASK          (0x18u)
+#define MAG3D_CONFIG_REG2_MASK          (0xFFu)
+#define MAG3D_CONFIG_REG3_MASK          (0x1Fu)
+
+/* Read and write data length for sensor registers */
+#define MAG3D_DATA_READ_LEN             (0x9u)
+#define MAG3D_CONFIG_WRITE_LEN          (0x4u)
+
+/* MOD1 write registers for slave address select*/
+#define MAG3D_MOD1_IIC_ADDR_0           (0x0<<5u)
+#define MAG3D_MOD1_IIC_ADDR_1           (0x1<<5u)
+#define MAG3D_MOD1_IIC_ADDR_2           (0x2<<5u)
+#define MAG3D_MOD1_IIC_ADDR_3           (0x3<<5u)
+
+#define MAG3D_MOD1_INT_DISABLE          (0x1<<2u)   /* INT disable register */
+#define MAG3D_MOD1_FAST_MODE            (0x1<<1u)   /*Fast Mode at 400Khz*/
+#define MAG3D_MOD1_LP_MODE              (0x1)       /*Low power Mode*/
+
+/* Low power mode interval period config values*/
+#define MAG3D_MOD2_LPP_100MS            (0x0u)
+#define MAG3D_MOD2_LPP_12MS             (0x1u)
+
+#define MAG3D_MOD2_PTT_ENABLE           (0x1<<5u)   /* Parity test enable */
+#define MAG3D_MOD2_TEMP_DISABLE         (0x1<<7u)   /* Temperature read disable */
+
 /******************************************************************************
  *                                Typedefs
  ******************************************************************************/
+/* Structure to hold magnetic sensor data read from I2C */
+typedef struct
+{
+    int32_t bx1:8;
+    int32_t by1:8;
+    int32_t bz1:8;
+    int32_t temp1:4;
+    int32_t diag0:4;
+    int32_t bx0:4;
+    int32_t by0:4;
+    int32_t diag1:4;
+    int32_t bz0:4;
+    int32_t temp0:8;
+    int32_t res0:8;
+    int32_t res1:8;
+    int32_t res2:8;
+} __attribute__((packed)) tlv493d_t;
+
+
+typedef struct
+{
+    int16_t bx;
+    int16_t by;
+    int16_t bz;
+
+} __attribute__((packed)) sensorpack_t;
+
+extern volatile uint8_t mag3d_shield_connected;
 
 /******************************************************************************
 *                             Function prototypes
 ******************************************************************************/
-void get_accel_val (axis3bit16_t* accel_struct);
 
-void get_gyro_val (axis3bit16_t* gyro_struct);
 
-void get_mag_val (axis3bit16_t* gyro_struct);
+void mag3d_sensor_init(void);
 
-void motion_sensor_init (void);
+void mag3d_sensor_read_val (sensorpack_t *sense);
 
-void motion_sensor_update_gatt();
+void mag3d_sensor_update_gatt();
 
-void power_down_motion_sensor(void);
+float mag3dsense_calc_flux(uint16_t val);
 
-void power_up_motion_sensor(void);
-
-#endif /* MOTION_SENSOR_HW_H_ */
+#endif /* MAG3D_SENSOR_HW_H_ */

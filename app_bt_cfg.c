@@ -1,3 +1,9 @@
+/** app_bt_cfg.c
+ *
+ * Runtime Bluetooth stack configuration parameters
+ *
+ */
+ 
 /*
  * Copyright 2019, Cypress Semiconductor Corporation or a subsidiary of
  * Cypress Semiconductor Corporation. All Rights Reserved.
@@ -31,22 +37,14 @@
  * so agrees to indemnify Cypress against all liability.
  */
 
-/** app_bt_cfg.c
- *
- * Runtime Bluetooth stack configuration parameters
- *
- */
-
 #include "app_bt_cfg.h"
 #include "wiced_bt_dev.h"
 #include "wiced_bt_ble.h"
 #include "wiced_bt_gatt.h"
-
-/* Null-Terminated Local Device Name */
+#include "cycfg_gatt_db.h"
 
 /* TODO - set your device name */
-uint8_t BT_LOCAL_NAME[] = { 'M', 'o', 't', 'i', 'o', 'n', '\0' };
-const uint16_t BT_LOCAL_NAME_CAPACITY = sizeof(BT_LOCAL_NAME);
+uint8_t BT_LOCAL_NAME[] = { 'S', 'e', 'n', 's', ' ', 'H', 'u', 'b', '\0' };
 
 /* TODO - Set your app settings as per use case */
 /*****************************************************************************
@@ -114,12 +112,12 @@ const wiced_bt_cfg_settings_t wiced_bt_cfg_settings =
         .low_duty_max_interval           = 1024,                                                       /**< Low duty undirected connectable maximum advertising interval */
         .low_duty_duration               = 0,                                                          /**< Low duty undirected connectable advertising duration in seconds (0 for infinite) */
 
-        .high_duty_directed_min_interval = WICED_BT_CFG_DEFAULT_HIGH_DUTY_ADV_MIN_INTERVAL,            /**< High duty directed connectable minimum advertising interval */
-        .high_duty_directed_max_interval = WICED_BT_CFG_DEFAULT_HIGH_DUTY_ADV_MIN_INTERVAL,            /**< High duty directed connectable maximum advertising interval */
+        .high_duty_directed_min_interval = WICED_BT_CFG_DEFAULT_HIGH_DUTY_DIRECTED_ADV_MIN_INTERVAL,   /**< High duty directed connectable minimum advertising interval */
+        .high_duty_directed_max_interval = WICED_BT_CFG_DEFAULT_HIGH_DUTY_DIRECTED_ADV_MAX_INTERVAL,   /**< High duty directed connectable maximum advertising interval */
 
-        .low_duty_directed_min_interval  = 1024,                                                       /**< Low duty directed connectable minimum advertising interval */
-        .low_duty_directed_max_interval  = 1024,                                                       /**< Low duty directed connectable maximum advertising interval */
-        .low_duty_directed_duration      = 0,                                                          /**< Low duty directed connectable advertising duration in seconds (0 for infinite) */
+        .low_duty_directed_min_interval  = WICED_BT_CFG_DEFAULT_LOW_DUTY_DIRECTED_ADV_MIN_INTERVAL,    /**< Low duty directed connectable minimum advertising interval */
+        .low_duty_directed_max_interval  = WICED_BT_CFG_DEFAULT_LOW_DUTY_DIRECTED_ADV_MAX_INTERVAL,    /**< Low duty directed connectable maximum advertising interval */
+        .low_duty_directed_duration      = 0,                                                         /**< Low duty directed connectable advertising duration in seconds (0 for infinite) */
 
         .high_duty_nonconn_min_interval  = WICED_BT_CFG_DEFAULT_HIGH_DUTY_NONCONN_ADV_MIN_INTERVAL,    /**< High duty non-connectable minimum advertising interval */
         .high_duty_nonconn_max_interval  = WICED_BT_CFG_DEFAULT_HIGH_DUTY_NONCONN_ADV_MAX_INTERVAL,    /**< High duty non-connectable maximum advertising interval */
@@ -136,7 +134,7 @@ const wiced_bt_cfg_settings_t wiced_bt_cfg_settings =
         .client_max_links               = 0,                                                          /**< Client config: maximum number of servers that local client can connect to  */
         .server_max_links               = 1,                                                          /**< Server config: maximum number of remote clients connections allowed by the local */
         .max_attr_len                   = 512,                                                       /**< Maximum attribute length; gki_cfg must have a corresponding buffer pool that can hold this length */
-        .max_mtu_size                   = 515                                                         /**< Maximum MTU size for GATT connections, should be between 23 and (max_attr_len + 5) */
+        .max_mtu_size                   = 517                                                         /**< Maximum MTU size for GATT connections, should be between 23 and (max_attr_len + 5) */
     },
 
     .rfcomm_cfg =                                                   /* RFCOMM configuration */
@@ -186,7 +184,9 @@ const wiced_bt_cfg_settings_t wiced_bt_cfg_settings =
     /* BLE white list size */
     .ble_white_list_size                = 0,                                                               /**< Maximum number of white list devices allowed. Cannot be more than 128 */
                                                           /**< Maximum number of white list devices allowed. Cannot be more than 128 */
+#ifndef CYW20735B1
     .default_ble_power_level            = 12                                                             /**< Default LE power level, Refer lm_TxPwrTable table for the power range */
+#endif
 
 };
 

@@ -1,42 +1,100 @@
 #
-# $ Copyright Cypress Semiconductor $
+# Copyright 2018-2020, Cypress Semiconductor Corporation or a subsidiary of
+# Cypress Semiconductor Corporation. All Rights Reserved.
+#
+# This software, including source code, documentation and related
+# materials ("Software"), is owned by Cypress Semiconductor Corporation
+# or one of its subsidiaries ("Cypress") and is protected by and subject to
+# worldwide patent protection (United States and foreign),
+# United States copyright laws and international treaty provisions.
+# Therefore, you may use this Software only as provided in the license
+# agreement accompanying the software package from which you
+# obtained this Software ("EULA").
+# If no EULA applies, Cypress hereby grants you a personal, non-exclusive,
+# non-transferable license to copy, modify, and compile the Software
+# source code solely for use in connection with Cypress's
+# integrated circuit products. Any reproduction, modification, translation,
+# compilation, or representation of this Software except as specified
+# above is prohibited without the express written permission of Cypress.
+#
+# Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Cypress
+# reserves the right to make changes to the Software without notice. Cypress
+# does not assume any liability arising out of the application or use of the
+# Software or any product or circuit described in the Software. Cypress does
+# not authorize its products for use in any products where a malfunction or
+# failure of the Cypress product may reasonably be expected to result in
+# significant property damage, injury or death ("High Risk Product"). By
+# including Cypress's product in a High Risk Product, the manufacturer
+# of such system or application assumes all risk of such use and in doing
+# so agrees to indemnify Cypress against all liability.
 #
 
 ifeq ($(WHICHFILE),true)
 $(info Processing $(lastword $(MAKEFILE_LIST)))
 endif
 
-#
+################################################################################
 # Basic Configuration
+################################################################################
+# Name of application (used to derive name of final linked file).
+APPNAME=Sensor_Hub
+
+# Name of toolchain to use. Options include:
 #
-APPNAME=motion_sensor
+# GCC_ARM -- GCC 7.2.1, provided with ModusToolbox IDE
+# ARM     -- ARM Compiler (must be installed separately)
+# IAR     -- IAR Compiler (must be installed separately)
+#
+# See also: CY_COMPILER_PATH below
 TOOLCHAIN=GCC_ARM
+
+# Default build configuration. Options include:
+#
+# Debug   -- build with minimal optimizations, focus on debugging.
+# Release -- build with full optimizations
 CONFIG=Debug
+# If set to "true" or "1", display full command-lines when building.
 VERBOSE=
 
 # default target
 TARGET=CYW920819EVB-02
 
-SUPPORTED_TARGETS = \
-  CYW920819EVB-02 \
-  CYW920820EVB-02 \
-  CYW920719B2Q40EVB-01
-
 TARGET_DEVICE_MAP = \
   CYW920819EVB-02/20819A1 \
   CYW920820EVB-02/20820A1 \
-  CYW920719B2Q40EVB-01/20719B2
-
+  CYW920719B2Q40EVB-01/20719B2 \
+  CYW920735Q60EVB-01/20735B1
 CY_TARGET_DEVICE = $(patsubst $(TARGET)/%,%,$(filter $(TARGET)%,$(TARGET_DEVICE_MAP)))
 
-ifeq ($(filter $(TARGET),$(SUPPORTED_TARGETS)),)
-$(error TARGET $(TARGET) not supported for this code example)
-endif
-
-#
+################################################################################
 # Advanced Configuration
+################################################################################
+
+# Enable optional code that is ordinarily disabled by default.
 #
+# Available components depend on the specific targeted hardware and firmware
+# in use. In general, if you have
+#
+#    COMPONENTS=foo bar
+#
+# ... then code in directories named COMPONENT_foo and COMPONENT_bar will be
+# added to the build
+#
+COMPONENTS=
+
+# Like COMPONENTS, but disable optional code that was enabled by default.
+DISABLE_COMPONENTS=
+
+# By default the build system automatically looks in the Makefile's directory
+# tree for source code and builds it. The SOURCES variable can be used to
+# manually add source code to the build process from a location not searched
+# by default, or otherwise not found by the build system.
 SOURCES=
+
+# Like SOURCES, but for include directories. Value should be paths to
+# directories (without a leading -I).
 INCLUDES=\
     $(CY_BASELIB_PATH)/include \
     $(CY_BASELIB_PATH)/include/hal \
@@ -45,15 +103,44 @@ INCLUDES=\
     $(CY_BASELIB_PATH)/internal/$(CY_TARGET_DEVICE) \
     $(CY_SHARED_PATH)/dev-kit/btsdk-include \
     $(CY_BSP_PATH)
+
+# Add additional defines to the build process (without a leading -D).
 DEFINES=
+
+# Select softfp or hardfp floating point. Default is softfp.
 VFP_SELECT=
+
+# Additional / custom C compiler flags.
+#
+# NOTE: Includes and defines should use the INCLUDES and DEFINES variable
+# above.
 CFLAGS=
+
+# Additional / custom C++ compiler flags.
+#
+# NOTE: Includes and defines should use the INCLUDES and DEFINES variable
+# above.
 CXXFLAGS=
+
+# Additional / custom assembler flags.
+#
+# NOTE: Includes and defines should use the INCLUDES and DEFINES variable
+# above.
 ASFLAGS=
+
+# Additional / custom linker flags.
 LDFLAGS=
+
+# Additional / custom libraries to link in to the application.
 LDLIBS=
+
+# Path to the linker script to use (if empty, use the default linker script).
 LINKER_SCRIPT=
+
+# Custom pre-build commands to run.
 PREBUILD=
+
+# Custom post-build commands to run.
 POSTBUILD=
 FEATURES=
 
@@ -75,7 +162,10 @@ endif
 CY_APP_DEFINES+=\
     -DWICED_BT_TRACE_ENABLE
 
-CY_RECIPE_EXTRA_LIBS+=-lgcc
+CY_CONFIG_MODUS_FILE:=
+
+# Tools that can be launched with "make open CY_OPEN_TYPE=<tool>
+CY_BT_APP_TOOLS=BTSpy ClientControl
 
 #
 # Components (middleware libraries)
@@ -86,11 +176,15 @@ COMPONENTS +=bsp_design_modus
 # Paths
 ################################################################################
 
-# Path (absolute or relative) to the project
+# Relative path to the project directory (default is the Makefile's directory).
+# This controls where automatic source code discovery looks for code.
 CY_APP_PATH=.
 
 # Path (absolute or relative) to the bt-sdk folder (at repo root)
 CY_SHARED_PATH=$(CY_APP_PATH)/../wiced_btsdk
+
+# Absolute path to the root of the BTSDK
+CY_SHARED_PATH_ABS=$(CURDIR)/../../../wiced_btsdk
 
 # Path (absolute or relative) to the base library
 CY_BASELIB_PATH=$(CY_SHARED_PATH)/dev-kit/baselib/$(CY_TARGET_DEVICE)

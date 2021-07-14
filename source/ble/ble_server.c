@@ -1,75 +1,111 @@
- /** sensor_hub_ble.c
+/*******************************************************************************
+* File Name:   ble_server.c
 *
-* This file contains the btstack implementation that handles
-* ble events and notifications.
+* Description: This file contains the Bluetooth LE server implementation and handles
+*                Bluetooth LE events.
 *
-*/
+* Related Document: See README.md
+*
+********************************************************************************
+* Copyright 2021, Cypress Semiconductor Corporation (an Infineon company) or
+* an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
+*
+* This software, including source code, documentation and related
+* materials ("Software") is owned by Cypress Semiconductor Corporation
+* or one of its affiliates ("Cypress") and is protected by and subject to
+* worldwide patent protection (United States and foreign),
+* United States copyright laws and international treaty provisions.
+* Therefore, you may use this Software only as provided in the license
+* agreement accompanying the software package from which you
+* obtained this Software ("EULA").
+* If no EULA applies, Cypress hereby grants you a personal, non-exclusive,
+* non-transferable license to copy, modify, and compile the Software
+* source code solely for use in connection with Cypress's
+* integrated circuit products.  Any reproduction, modification, translation,
+* compilation, or representation of this Software except as specified
+* above is prohibited without the express written permission of Cypress.
+*
+* Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
+* EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Cypress
+* reserves the right to make changes to the Software without notice. Cypress
+* does not assume any liability arising out of the application or use of the
+* Software or any product or circuit described in the Software. Cypress does
+* not authorize its products for use in any products where a malfunction or
+* failure of the Cypress product may reasonably be expected to result in
+* significant property damage, injury or death ("High Risk Product"). By
+* including Cypress's product in a High Risk Product, the manufacturer
+* of such system or application assumes all risk of such use and in doing
+* so agrees to indemnify Cypress against all liability.
+*******************************************************************************/
 
-/*
- * Copyright 2020, Cypress Semiconductor Corporation or a subsidiary of
- * Cypress Semiconductor Corporation. All Rights Reserved.
- *
- * This software, including source code, documentation and related
- * materials ("Software"), is owned by Cypress Semiconductor Corporation
- * or one of its subsidiaries ("Cypress") and is protected by and subject to
- * worldwide patent protection (United States and foreign),
- * United States copyright laws and international treaty provisions.
- * Therefore, you may use this Software only as provided in the license
- * agreement accompanying the software package from which you
- * obtained this Software ("EULA").
- * If no EULA applies, Cypress hereby grants you a personal, non-exclusive,
- * non-transferable license to copy, modify, and compile the Software
- * source code solely for use in connection with Cypress's
- * integrated circuit products. Any reproduction, modification, translation,
- * compilation, or representation of this Software except as specified
- * above is prohibited without the express written permission of Cypress.
- *
- * Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Cypress
- * reserves the right to make changes to the Software without notice. Cypress
- * does not assume any liability arising out of the application or use of the
- * Software or any product or circuit described in the Software. Cypress does
- * not authorize its products for use in any products where a malfunction or
- * failure of the Cypress product may reasonably be expected to result in
- * significant property damage, injury or death ("High Risk Product"). By
- * including Cypress's product in a High Risk Product, the manufacturer
- * of such system or application assumes all risk of such use and in doing
- * so agrees to indemnify Cypress against all liability.
- */
-
-#include "wiced_bt_gatt.h"
-#include "cycfg_gatt_db.h"
-#include "cycfg_pins.h"
-#include "motion_sensor_hw.h"
-#include "mag3d_sensor_hw.h"
-#include "temp_sensor_hw.h"
-#include "sensor_hub_ble.h"
-#include "app_bt_cfg.h"
-#include "wiced_bt_trace.h"
-#include "wiced_hal_adc.h"
-#include "wiced_hal_i2c.h"
 #include "wiced_platform.h"
-#include "wiced_timer.h"
 #include "bt_types.h"
-#include "wiced_rtos.h"
+#include "wiced_bt_gatt.h"
+#include "wiced_bt_trace.h"
+#include "wiced_bt_ble.h"
 #include "wiced_bt_l2c.h"
+#include "wiced_rtos.h"
+#include "wiced_hal_pwm.h"
+#include "wiced_hal_aclk.h"
+#include "ble_server.h"
+#include "ble_cfg.h"
+#include "sensors.h"
+#include "wiced_result.h"
+#include "wiced_hal_gpio.h"
 
 
 /******************************************************************************
  *                   External Variables and Functions
  ******************************************************************************/
 
+static wiced_bt_gatt_status_t ble_server_gatt_callback(wiced_bt_gatt_evt_t event,
+                                        wiced_bt_gatt_event_data_t *p_event_data);
+
+static wiced_bt_gatt_status_t ble_server_gatt_conn_status_cb(
+                                    wiced_bt_gatt_connection_status_t *p_status);
+
+static wiced_bt_gatt_status_t ble_server_gatt_connection_up(
+                                    wiced_bt_gatt_connection_status_t *p_status);
+
+static wiced_bt_gatt_status_t ble_server_gatt_connection_down(
+                                    wiced_bt_gatt_connection_status_t *p_status);
+
+static wiced_bt_gatt_status_t ble_server_gatt_req_cb( uint16_t conn_id,
+                                            wiced_bt_gatt_request_type_t type,
+                                            wiced_bt_gatt_request_data_t *p_data);
+
+static wiced_bt_gatt_status_t ble_server_gatt_get_value( uint16_t attr_handle,
+                                            uint16_t conn_id, uint8_t *p_val,
+                                            uint16_t max_len, uint16_t *p_len );
+
+static wiced_bt_gatt_status_t ble_server_gatt_set_value( uint16_t attr_handle,
+                                                uint16_t conn_id, uint8_t *p_val,
+                                                uint16_t len );
+
+static wiced_bt_gatt_status_t ble_server_gatt_req_read_handler(uint16_t conn_id,
+                                                wiced_bt_gatt_read_t * p_read_data);
+
+static wiced_bt_gatt_status_t ble_server_gatt_req_write_handler(uint16_t conn_id,
+                                                    wiced_bt_gatt_write_t * p_data);
+
+static void ble_app_init(void);
+
+static void ble_app_adv_config(void);
+
+static void app_set_status_led(uint8_t status, uint8_t frequency, uint8_t dutycycle);
+
+static void app_button_interrupt_cb(void* user_data, uint8_t port_pin);
 /******************************************************************************
- *                                Constants
+ *                                Macros
  ******************************************************************************/
-/* CCCD Index values of Sensors */
-enum
-{
-    MOTION_SENSOR_CCCD_INDEX,
-    MAG3D_SENSOR_CCCD_INDEX,
-    TEMP_SENSOR_CCCD_INDEX
-};
+
+#define PWM_CHANNEL                             PWM0
+#define PWM_INP_CLK_IN_HZ                       (32*1000) /* PWM Input Clock Frequency*/
+
+#define PWM_FREQ_IN_HZ                          (2)
+#define PWM_DUTY_CYCLE                          (50)
+
 /******************************************************************************
  *                                Structures
  ******************************************************************************/
@@ -77,19 +113,16 @@ enum
 /******************************************************************************
  *                                Variables Definitions
  ******************************************************************************/
-/* Timer handles */
-static wiced_timer_t motion_timer_handle;
-static wiced_timer_t mag3d_timer_handle;
-static wiced_timer_t temp_timer_handle;
 
 /* Holds the host information*/
-host_info_t sensor_hub_hostinfo;
+host_info_t ble_server_hostinfo;
 
+wiced_pwm_config_t pwm_config;
 /******************************************************************************
 *                                Function Definitions
 ******************************************************************************/
-/**
- * Function         sensor_hub_management_cback
+/******************************************************************************
+ * Function         ble_app_management_cback
  *
  *                  This function is invoked after the controller's
  *                  initialization is complete
@@ -99,8 +132,8 @@ host_info_t sensor_hub_hostinfo;
  *
  * @return    WICED_BT_SUCCESS : on success;
  *            WICED_BT_FAILED : if an error occurred
- */
-wiced_result_t sensor_hub_management_cback(wiced_bt_management_evt_t event,
+ ******************************************************************************/
+wiced_result_t ble_app_management_cback(wiced_bt_management_evt_t event,
                                   wiced_bt_management_evt_data_t *p_event_data)
 {
     wiced_result_t                      result = WICED_BT_SUCCESS;
@@ -111,8 +144,10 @@ wiced_result_t sensor_hub_management_cback(wiced_bt_management_evt_t event,
     switch(event)
     {
         case BTM_ENABLED_EVT:
+            /*initialize the drivers */
+            sensors_init();
             /* Initialize the application */
-            sensor_hub_application_init();
+            ble_app_init();
             break;
 
         case BTM_DISABLED_EVT:
@@ -170,61 +205,29 @@ wiced_result_t sensor_hub_management_cback(wiced_bt_management_evt_t event,
     return result;
 }
 
-/**
- * Function         sensor_hub_application_init
+/******************************************************************************
+ * Function         ble_app_init(void)
  *
- * @brief           This function is invoked after ENABLED event from controller
+ * @brief           This function Inlitilize the Bluetooth LE app  
  *
  * @return    None
- */
-void sensor_hub_application_init(void)
+ ******************************************************************************/
+void ble_app_init(void)
 {
     wiced_bt_gatt_status_t gatt_status;
     wiced_result_t result = WICED_BT_ERROR;
     wiced_bt_device_address_t  local_device_bd_addr;
 
-    /* Initialize I2C */
-    wiced_hal_i2c_init();
-    wiced_hal_i2c_set_speed(I2CM_SPEED_400KHZ);
-
-    /* Initialize the necessary peripherals (ADC) */
-    wiced_hal_adc_init();
-
     /* Configure the Button GPIO as an input with a resistive pull up and falling edge interrupt */
-    wiced_hal_gpio_register_pin_for_interrupt( SW3, button_interrupt_cb, NULL );
+    wiced_hal_gpio_register_pin_for_interrupt( SW3, app_button_interrupt_cb, NULL );
     wiced_hal_gpio_configure_pin( USER_BUTTON,
                                 ( GPIO_INPUT_ENABLE | GPIO_PULL_UP | GPIO_EN_INT_FALLING_EDGE ),
                                 GPIO_PIN_OUTPUT_HIGH );
 
-    /* Initialize Magnetic sensor */
-    mag3d_sensor_init();
+    /* Enable PWM Clock*/
+    wiced_hal_aclk_enable(PWM_INP_CLK_IN_HZ, WICED_ACLK1, WICED_ACLK_FREQ_24_MHZ);
 
-    /* Initialize LSM9DS1 sensor */
-    motion_sensor_init();
-
-    if(mag3d_shield_connected)
-    {
-        /* Initialize magnetic 3d sense timer*/
-        if(WICED_BT_SUCCESS != wiced_init_timer(&mag3d_timer_handle,
-               &mag3d_timer_callback, 0u, WICED_MILLI_SECONDS_PERIODIC_TIMER))
-        {
-            WICED_BT_TRACE("Magnetic 3D sensor timer initialize failed\r\n");
-        }
-    }
-
-    /* Initialize motion sensor timer */
-    if(WICED_BT_SUCCESS != wiced_init_timer(&motion_timer_handle,
-           &motion_timer_callback, 0u, WICED_MILLI_SECONDS_PERIODIC_TIMER))
-    {
-        WICED_BT_TRACE("Motion sensor timer initialize failed\r\n");
-    }
-
-    /* Initialize temperature read timer */
-    if(WICED_BT_SUCCESS != wiced_init_timer(&temp_timer_handle,
-           &temp_timer_callback, 0u, WICED_MILLI_SECONDS_PERIODIC_TIMER))
-    {
-        WICED_BT_TRACE("Temperature timer initialize failed\r\n");
-    }
+    app_set_status_led(1u, PWM_FREQ_IN_HZ, PWM_DUTY_CYCLE);
 
     wiced_bt_dev_read_local_addr(local_device_bd_addr);
 
@@ -238,7 +241,7 @@ void sensor_hub_application_init(void)
                     app_gap_device_name);
 
     /* Register with stack to receive GATT callback */
-    gatt_status = wiced_bt_gatt_register(sensor_hub_gatts_callback);
+    gatt_status = wiced_bt_gatt_register(ble_server_gatt_callback);
     WICED_BT_TRACE("wiced_bt_gatt_register: %d\r\n", gatt_status);
 
     /*  Tell stack to use our GATT database */
@@ -247,15 +250,16 @@ void sensor_hub_application_init(void)
     WICED_BT_TRACE("wiced_bt_gatt_db_init %d\r\n", gatt_status);
 
     /* Set the advertising params and make the device discoverable */
-    sensor_hub_set_advertisement_data();
+    ble_app_adv_config();
+
     result =  wiced_bt_start_advertisements(BTM_BLE_ADVERT_UNDIRECTED_HIGH,
                                                          0u, NULL);
     WICED_BT_TRACE("wiced_bt_start_advertisements %d\r\n", result);
 
 }
 
-/**
- * Function         sensor_hub_gatts_callback
+/*******************************************************************************
+ * Function         ble_server_gatt_callback
  *
  * @brief           This function is invoked on GATT event
  *
@@ -264,8 +268,8 @@ void sensor_hub_application_init(void)
  *
  * @return    WICED_BT_SUCCESS : on success;
  *            WICED_BT_FAILED : if an error occurred
- */
-wiced_bt_gatt_status_t sensor_hub_gatts_callback(wiced_bt_gatt_evt_t event,
+ *******************************************************************************/
+wiced_bt_gatt_status_t ble_server_gatt_callback(wiced_bt_gatt_evt_t event,
                                              wiced_bt_gatt_event_data_t *p_event_data)
 {
     wiced_bt_gatt_status_t status = WICED_BT_GATT_INVALID_PDU;
@@ -274,12 +278,12 @@ wiced_bt_gatt_status_t sensor_hub_gatts_callback(wiced_bt_gatt_evt_t event,
     switch(event)
     {
     case GATT_CONNECTION_STATUS_EVT:
-        status = sensor_hub_gatts_conn_status_cb(&p_event_data->connection_status);
+        status = ble_server_gatt_conn_status_cb(&p_event_data->connection_status);
         break;
 
     case GATT_ATTRIBUTE_REQUEST_EVT:
         p_attr_req = &p_event_data->attribute_request;
-        status = sensor_hub_gatts_req_cb(p_attr_req->conn_id, p_attr_req->request_type, &p_attr_req->data);
+        status = ble_server_gatt_req_cb(p_attr_req->conn_id, p_attr_req->request_type, &p_attr_req->data);
         break;
 
     default:
@@ -288,45 +292,45 @@ wiced_bt_gatt_status_t sensor_hub_gatts_callback(wiced_bt_gatt_evt_t event,
     return status;
 }
 
-/**
- * Function         sensor_hub_gatts_conn_status_cb
+/*******************************************************************************
+ * Function         ble_server_gatt_conn_status_cb
  *
  * @brief           This function is invoked on GATT connection event
  *
  * @param[in] p_status               : GATT connection status
  *
  * @return                           : Connection status from connection up/down function
- */
-wiced_bt_gatt_status_t sensor_hub_gatts_conn_status_cb(
+ *******************************************************************************/
+wiced_bt_gatt_status_t ble_server_gatt_conn_status_cb(
                                     wiced_bt_gatt_connection_status_t *p_status)
 {
     if (p_status->connected)
     {
-        return sensor_hub_gatts_connection_up(p_status);
+        return ble_server_gatt_connection_up(p_status);
     }
 
-    return sensor_hub_gatts_connection_down(p_status);
+    return ble_server_gatt_connection_down(p_status);
 }
 
-/**
- * Function         sensor_hub_gatts_connection_up
+/*******************************************************************************
+ * Function         ble_server_gatt_connection_up
  *
  * @brief           This function is invoked when connection is established
  *
  * @param[in] p_status               : GATT connection status
  *
  * @return                           : WICED_BT_GATT_SUCCESS
- */
-wiced_bt_gatt_status_t sensor_hub_gatts_connection_up(wiced_bt_gatt_connection_status_t *p_status)
+ *******************************************************************************/
+wiced_bt_gatt_status_t ble_server_gatt_connection_up(wiced_bt_gatt_connection_status_t *p_status)
 {
     wiced_result_t result = WICED_BT_ERROR;
 
     WICED_BT_TRACE("Sensor hub connected with [ %B] id:%d\r\n", p_status->bd_addr,
                                                              p_status->conn_id);
-
+    app_set_status_led(0u, PWM_FREQ_IN_HZ, PWM_DUTY_CYCLE);
 
     /* Update the connection handler.  Save address of the connected device. */
-    sensor_hub_hostinfo.connection_id= p_status->conn_id;
+    ble_server_hostinfo.connection_id= p_status->conn_id;
 
     /* Stop advertising */
     result =  wiced_bt_start_advertisements(BTM_BLE_ADVERT_OFF, BLE_ADDR_PUBLIC,
@@ -341,49 +345,51 @@ wiced_bt_gatt_status_t sensor_hub_gatts_connection_up(wiced_bt_gatt_connection_s
     return WICED_BT_GATT_SUCCESS;
 }
 
-/**
- * Function         sensor_hub_gatts_connection_down
+/*******************************************************************************
+ * Function         ble_server_gatt_connection_down
  *
  * @brief           This function is invoked when connection is lost
  *
  * @param[in] p_status               : GATT connection status
  *
  * @return                           : WICED_BT_GATT_SUCCESS
- */
-wiced_bt_gatt_status_t sensor_hub_gatts_connection_down(
+ ******************************************************************************/
+wiced_bt_gatt_status_t ble_server_gatt_connection_down(
                                     wiced_bt_gatt_connection_status_t *p_status)
 {
     wiced_result_t result;
     BD_ADDR bdaddr;
-    memcpy(bdaddr, sensor_hub_hostinfo.link_keys.bd_addr, sizeof(bdaddr));
+    memcpy(bdaddr, ble_server_hostinfo.link_keys.bd_addr, sizeof(bdaddr));
 
     WICED_BT_TRACE("Sensor hub disconnected from [ %B] conn_id:%d reason:%d\r\n",
             bdaddr, p_status->conn_id, p_status->reason);
 
+    app_set_status_led(1u, PWM_FREQ_IN_HZ, PWM_DUTY_CYCLE);
+
     /* Resetting the device info */
-    sensor_hub_hostinfo.connection_id = 0;
+    ble_server_hostinfo.connection_id = 0;
 
     /*Undirected advertisement */
 
     result = wiced_bt_start_advertisements(BTM_BLE_ADVERT_UNDIRECTED_LOW,
                                                      0u, NULL);
 
-    WICED_BT_TRACE("wiced_bt_start_advertisements %d\r\n", result);
+    WICED_BT_TRACE("Advertisement started, status:%d\r\n", result);
 
 
     return WICED_BT_SUCCESS;
 }
 
-/**
- * Function         sensor_hub_gatts_req_cb
+/*******************************************************************************
+ * Function         ble_server_gatt_req_cb
  *
  * @brief           Process GATT request from the peer
  *
  * @param[in] p_data                 : GATT attribute request data
  *
  * @return                           : WICED_BT_GATT_SUCCESS
- */
-wiced_bt_gatt_status_t sensor_hub_gatts_req_cb( uint16_t conn_id, wiced_bt_gatt_request_type_t type,
+ ********************************************************************************/
+wiced_bt_gatt_status_t ble_server_gatt_req_cb( uint16_t conn_id, wiced_bt_gatt_request_type_t type,
                                                                 wiced_bt_gatt_request_data_t *p_data)
 {
     wiced_bt_gatt_status_t result = WICED_BT_GATT_ERROR;
@@ -393,11 +399,11 @@ wiced_bt_gatt_status_t sensor_hub_gatts_req_cb( uint16_t conn_id, wiced_bt_gatt_
     {
     case GATTS_REQ_TYPE_READ:
         WICED_BT_TRACE("GATT read request. connection handle is %d\r\n", p_data->handle);
-        result = sensor_hub_gatts_req_read_handler(conn_id, &p_data->read_req);
+        result = ble_server_gatt_req_read_handler(conn_id, &p_data->read_req);
         break;
     case GATTS_REQ_TYPE_WRITE:
         WICED_BT_TRACE("GATT write request. connection handle is %d\r\n", p_data->handle);
-        result = sensor_hub_gatts_req_write_handler(conn_id, &p_data->write_req);
+        result = ble_server_gatt_req_write_handler(conn_id, &p_data->write_req);
         break;
     default:
         WICED_BT_TRACE("GATT request unhandled..\r\n");
@@ -406,8 +412,8 @@ wiced_bt_gatt_status_t sensor_hub_gatts_req_cb( uint16_t conn_id, wiced_bt_gatt_
     return result;
 }
 
-/**
- * Function         sensor_hub_gatts_get_value
+/*******************************************************************************
+ * Function         ble_server_gatt_get_value
  *
  * @brief           This function handles reading of the attribute value from the GATT database and passing the
  *                   data to the BT stack.
@@ -419,8 +425,8 @@ wiced_bt_gatt_status_t sensor_hub_gatts_req_cb( uint16_t conn_id, wiced_bt_gatt_
  * @param[in] *p_len                     : Actual length of data copied to the buffer
  *
  * @return                               : wiced_bt_gatt_status_e
- */
-wiced_bt_gatt_status_t sensor_hub_gatts_get_value( uint16_t attr_handle, uint16_t conn_id, uint8_t *p_val,
+ *******************************************************************************/
+wiced_bt_gatt_status_t ble_server_gatt_get_value( uint16_t attr_handle, uint16_t conn_id, uint8_t *p_val,
                                                                          uint16_t max_len, uint16_t *p_len )
 {
     int i = 0;
@@ -470,8 +476,8 @@ wiced_bt_gatt_status_t sensor_hub_gatts_get_value( uint16_t attr_handle, uint16_
     return status;
 }
 
-/**
- * Function         sensor_hub_gatts_set_value
+/*******************************************************************************
+ * Function         ble_server_gatt_set_value
  *
  * @brief           This function handles writing to the attribute value in the GATT database
  *                   using the data passed from the BT stack.
@@ -482,9 +488,9 @@ wiced_bt_gatt_status_t sensor_hub_gatts_get_value( uint16_t attr_handle, uint16_
  * @param[in] len                         : Length of data to be written
  *
  * @return                               : wiced_bt_gatt_status_e
- */
+ ********************************************************************************/
 
-wiced_bt_gatt_status_t sensor_hub_gatts_set_value( uint16_t attr_handle, uint16_t conn_id,
+wiced_bt_gatt_status_t ble_server_gatt_set_value( uint16_t attr_handle, uint16_t conn_id,
                                                             uint8_t *p_val, uint16_t len )
 {
     int i = 0;
@@ -515,7 +521,7 @@ wiced_bt_gatt_status_t sensor_hub_gatts_set_value( uint16_t attr_handle, uint16_
                     {
                         return WICED_BT_GATT_INVALID_ATTR_LEN;
                     }
-                    sensor_hub_hostinfo.sensor_value_cc_config[0] = p_val[0] | ( p_val[1] << 8 );
+                    ble_server_hostinfo.sensor_value_cc_config[0] = p_val[0] | ( p_val[1] << 8 );
 
                     /* If notifications enabled then start the notification timer.
                      * Send notifications at 100 ms interval.
@@ -523,22 +529,11 @@ wiced_bt_gatt_status_t sensor_hub_gatts_set_value( uint16_t attr_handle, uint16_
                     if(GATT_CLIENT_CONFIG_NOTIFICATION ==
                                app_sensor_hub_motion_sensor_notify_client_char_config[0])
                     {
-
-                        if(WICED_BT_SUCCESS != wiced_start_timer(&motion_timer_handle,
-                                                                MOTION_SENSOR_TIME_MS))
-                        {
-                            WICED_BT_TRACE("Motion sensor timer start failed\r\n");
-                        }
-
+                        motion_timer_start();
                     }
                     else
                     {
-
-                        if(WICED_BT_SUCCESS != wiced_stop_timer(&motion_timer_handle))
-                        {
-                            WICED_BT_TRACE("Motion sensor timer stop failed\r\n");
-                        }
-
+                        motion_timer_stop();
                     }
 
                     break;
@@ -548,34 +543,24 @@ wiced_bt_gatt_status_t sensor_hub_gatts_set_value( uint16_t attr_handle, uint16_
                     {
                         return WICED_BT_GATT_INVALID_ATTR_LEN;
                     }
-                    sensor_hub_hostinfo.sensor_value_cc_config[1] = p_val[0] | ( p_val[1] << 8 );
+                    ble_server_hostinfo.sensor_value_cc_config[1] = p_val[0] | ( p_val[1] << 8 );
 
                      /* If notifications enabled then start notification and idle timer.
                       * Send notifications at 500 ms interval and check for interrupt from
                       * sensor after 10s. If interrupt not active then got to SDS
                       */
 
-                     if(mag3d_shield_connected)
+                     if(mag3d_sensor_isConnected())
                      {
 
                          if(GATT_CLIENT_CONFIG_NOTIFICATION ==
                                     app_sensor_hub_magnetic_3dsensor_notify_client_char_config[0])
                          {
-
-                             if(WICED_BT_SUCCESS != wiced_start_timer(&mag3d_timer_handle, MAG3D_TIME_MS))
-                             {
-                                 WICED_BT_TRACE("Magnetic 3D timer start failed\r\n");
-                             }
-
+                             mag3d_timer_start();
                          }
                          else
                          {
-
-                             if(WICED_BT_SUCCESS != wiced_stop_timer(&mag3d_timer_handle))
-                             {
-                                 WICED_BT_TRACE("Magnetic 3D timer stop failed\r\n");
-                             }
-
+                             mag3d_timer_stop();
                          }
                      }
 
@@ -586,7 +571,7 @@ wiced_bt_gatt_status_t sensor_hub_gatts_set_value( uint16_t attr_handle, uint16_
                      {
                          return WICED_BT_GATT_INVALID_ATTR_LEN;
                      }
-                     sensor_hub_hostinfo.sensor_value_cc_config[2] = p_val[0] | ( p_val[1] << 8 );
+                     ble_server_hostinfo.sensor_value_cc_config[2] = p_val[0] | ( p_val[1] << 8 );
 
                      /* If notifications enabled then start notification and idle timer.
                      * Send notifications at 1000 ms interval
@@ -594,17 +579,11 @@ wiced_bt_gatt_status_t sensor_hub_gatts_set_value( uint16_t attr_handle, uint16_
                      if(GATT_CLIENT_CONFIG_NOTIFICATION ==
                              app_sensor_hub_temp_sensor_notify_client_char_config[0])
                      {
-                          if(WICED_BT_SUCCESS != wiced_start_timer(&temp_timer_handle, TEMPERATURE_TIME_MS))
-                          {
-                              WICED_BT_TRACE("Temperature timer start failed\r\n");
-                          }
+                         temp_timer_start();
                      }
                      else
                      {
-                         if(WICED_BT_SUCCESS != wiced_stop_timer(&temp_timer_handle))
-                         {
-                             WICED_BT_TRACE("Temperature timer stop failed\r\n");
-                         }
+                         temp_timer_stop();
                      }
 
                      break;
@@ -637,8 +616,8 @@ wiced_bt_gatt_status_t sensor_hub_gatts_set_value( uint16_t attr_handle, uint16_
     return status;
 }
 
-/**
- * Function         sensor_hub_gatts_req_read_handler
+/*******************************************************************************
+ * Function         ble_server_gatt_req_read_handler
  *
  * @brief           Process Read request or command from peer device
  *
@@ -646,14 +625,14 @@ wiced_bt_gatt_status_t sensor_hub_gatts_set_value( uint16_t attr_handle, uint16_
  * @param[in] p_read_data            : Data from GATT read request
  *
  * @return                           : WICED_BT_GATT_SUCCESS
- */
-wiced_bt_gatt_status_t sensor_hub_gatts_req_read_handler(uint16_t conn_id,
+ *******************************************************************************/
+wiced_bt_gatt_status_t ble_server_gatt_req_read_handler(uint16_t conn_id,
                                              wiced_bt_gatt_read_t * p_read_data)
 {
     wiced_bt_gatt_status_t status = WICED_BT_GATT_INVALID_HANDLE;
 
     /* Attempt to perform the Read Request */
-    status = sensor_hub_gatts_get_value(p_read_data->handle, conn_id, p_read_data->p_val,
+    status = ble_server_gatt_get_value(p_read_data->handle, conn_id, p_read_data->p_val,
                                         *p_read_data->p_val_len, p_read_data->p_val_len);
 
     if(WICED_BT_GATT_SUCCESS == status)
@@ -663,7 +642,8 @@ wiced_bt_gatt_status_t sensor_hub_gatts_req_read_handler(uint16_t conn_id,
         {
             motion_sensor_update_gatt();
         }
-        if((HDLC_SENSOR_HUB_MAGNETIC_3DSENSOR_NOTIFY_VALUE == p_read_data->handle) && mag3d_shield_connected)
+        if((HDLC_SENSOR_HUB_MAGNETIC_3DSENSOR_NOTIFY_VALUE == p_read_data->handle)
+                                                        && mag3d_sensor_isConnected())
         {
             mag3d_sensor_update_gatt();
         }
@@ -672,11 +652,11 @@ wiced_bt_gatt_status_t sensor_hub_gatts_req_read_handler(uint16_t conn_id,
             temp_sensor_update_gatt();
         }
     }
-    return status;;
+    return status;
 }
 
-/**
- * Function         sensor_hub_gatts_req_write_handler
+/*******************************************************************************
+ * Function         ble_server_gatt_req_write_handler
  *
  * @brief           Process write request or write command from peer device
  *
@@ -684,32 +664,32 @@ wiced_bt_gatt_status_t sensor_hub_gatts_req_read_handler(uint16_t conn_id,
  * @param[in] p_read_data            : Data from GATT write request
  *
  * @return                           : WICED_BT_GATT_SUCCESS
- */
-wiced_bt_gatt_status_t sensor_hub_gatts_req_write_handler(uint16_t conn_id,
+ *******************************************************************************/
+wiced_bt_gatt_status_t ble_server_gatt_req_write_handler(uint16_t conn_id,
                                                  wiced_bt_gatt_write_t * p_data)
 {
     wiced_bt_gatt_status_t status = WICED_BT_GATT_INVALID_HANDLE;
 
     /* Attempt to perform the Write Request */
-    status = sensor_hub_gatts_set_value(p_data->handle, conn_id,
+    status = ble_server_gatt_set_value(p_data->handle, conn_id,
                                         p_data->p_val, p_data->val_len);
 
     return status;
 }
 
-/**
- * Function         motion_sensor_set_advertisement_data
+/*******************************************************************************
+ * Function         ble_app_adv_config
  *
- * @brief           Set Advertisement data
+ * @brief           Configure advertisement data
  *
  * @return                          : None
- */
-void sensor_hub_set_advertisement_data(void)
+ ******************************************************************************/
+void ble_app_adv_config(void)
 {
     wiced_bt_ble_advert_elem_t adv_elem[3] = {0};
     uint8_t num_elem = 0;
     uint8_t flag = BTM_BLE_GENERAL_DISCOVERABLE_FLAG | BTM_BLE_BREDR_NOT_SUPPORTED;
-    uint8_t sensor_hub_service_uuid[LEN_UUID_128] = { __UUID_SERVICE_SENSOR_HUB };
+    uint8_t ble_server_service_uuid[LEN_UUID_128] = { __UUID_SERVICE_SENSOR_HUB };
 
     /* Advertisement Element for Flags */
     adv_elem[num_elem].advert_type  = BTM_BLE_ADVERT_TYPE_FLAG;
@@ -726,7 +706,7 @@ void sensor_hub_set_advertisement_data(void)
     /* Advertisement Element for Sensor Hub Service */
     adv_elem[num_elem].advert_type  = BTM_BLE_ADVERT_TYPE_128SRV_COMPLETE;
     adv_elem[num_elem].len          = LEN_UUID_128;
-    adv_elem[num_elem].p_data       = sensor_hub_service_uuid;
+    adv_elem[num_elem].p_data       = ble_server_service_uuid;
     num_elem++;
 
     if(WICED_BT_SUCCESS != wiced_bt_ble_set_raw_advertisement_data(num_elem, adv_elem))
@@ -736,102 +716,47 @@ void sensor_hub_set_advertisement_data(void)
 }
 
 
-/**
- * Function         motion_timer_callback
+
+
+/*******************************************************************************
+ * Function        app_set_status_led
  *
- * @brief           Motion timer callback
- * @param[in] arg                : not used
- *
- * @return                          : None
- */
-void motion_timer_callback(uint32_t arg)
-{
-     if((GATT_CLIENT_CONFIG_NOTIFICATION ==
-            sensor_hub_hostinfo.sensor_value_cc_config[0])
-                                           && (0 != sensor_hub_hostinfo.connection_id ))
-        {
-           WICED_BT_TRACE("Sending motion sensor value notification\r\n");
-           motion_sensor_update_gatt();
-
-           if(WICED_BT_GATT_SUCCESS != wiced_bt_gatt_send_notification(
-                                      sensor_hub_hostinfo.connection_id ,
-                                      HDLC_SENSOR_HUB_MOTION_SENSOR_NOTIFY_VALUE,
-                                      app_gatt_db_ext_attr_tbl[2].cur_len,
-                                      app_gatt_db_ext_attr_tbl[2].p_data))
-           {
-               WICED_BT_TRACE("Sending motion sensor value notification failed\r\n");
-           }
-
-
-        }
-}
-
-
-/**
- * Function         mag3d_timer_callback
- *
- * @brief           magnetic 3d sensor timer callback
- * @param[in] arg             : not used
- *
- * @return                    : None
- */
-void mag3d_timer_callback(uint32_t arg)
+ *                 Helper function to Control LED with PWM for advertisement status.
+ * @param[in] status              : LED status value to set (ON/OFF)
+ * @param[in] frequency           : PWM frequency value
+ * @param[in] dutycycle           : PWM Dutycycle value
+ * @return                        : None
+ *******************************************************************************/
+void app_set_status_led(uint8_t status, uint8_t frequency, uint8_t dutycycle)
 {
 
-    if((GATT_CLIENT_CONFIG_NOTIFICATION ==
-        sensor_hub_hostinfo.sensor_value_cc_config[1])
-                                       && (0 != sensor_hub_hostinfo.connection_id ))
+    if (status)
     {
+        wiced_hal_gpio_select_function(LED1, WICED_PWM0);
 
-        WICED_BT_TRACE("Sending magnetic 3d sensor value notification\r\n");
+        wiced_hal_pwm_get_params(PWM_INP_CLK_IN_HZ,
+                                 dutycycle,
+                                 frequency,
+                                 &pwm_config);
 
-        mag3d_sensor_update_gatt();
+        wiced_hal_pwm_start(PWM_CHANNEL,
+                            PMU_CLK,
+                            pwm_config.toggle_count,
+                            pwm_config.init_count,
+                            0);
 
-        if(WICED_BT_GATT_SUCCESS != wiced_bt_gatt_send_notification(
-                          sensor_hub_hostinfo.connection_id ,
-                          HDLC_SENSOR_HUB_MAGNETIC_3DSENSOR_NOTIFY_VALUE,
-                          app_gatt_db_ext_attr_tbl[4].cur_len,
-                          app_gatt_db_ext_attr_tbl[4].p_data))
-        {
-            WICED_BT_TRACE("Sending magnetic 3dsensor value notification failed\r\n");
-        }
-
+        wiced_hal_pwm_enable(PWM_CHANNEL);
+    }
+    else
+    {
+        wiced_hal_pwm_disable(PWM_CHANNEL);
+        wiced_hal_gpio_select_function(LED1, WICED_GPIO);
+        wiced_hal_gpio_set_pin_output(LED1, 0u);
     }
 }
 
 
-/**
- * Function         temp_timer_callback
- *
- * @brief           temperature sensor timer callback
- * @param[in] arg             : not used
- *
- * @return                    : None
- */
-void temp_timer_callback(uint32_t arg)
-{
-
-    if((GATT_CLIENT_CONFIG_NOTIFICATION ==
-        sensor_hub_hostinfo.sensor_value_cc_config[2])
-                                       && (0 != sensor_hub_hostinfo.connection_id ))
-    {
-       WICED_BT_TRACE("\r\nSending temperature sensor value notification\r\n");
-
-       temp_sensor_update_gatt();
-
-       if(WICED_BT_GATT_SUCCESS != wiced_bt_gatt_send_notification(
-                                  sensor_hub_hostinfo.connection_id ,
-                                  HDLC_SENSOR_HUB_TEMP_SENSOR_NOTIFY_VALUE,
-                                  app_gatt_db_ext_attr_tbl[6].cur_len,
-                                  app_gatt_db_ext_attr_tbl[6].p_data))
-       {
-           WICED_BT_TRACE("Sending temperature sensor value notification failed\r\n");
-       }
-    }
-}
-
-
-/**
+/*******************************************************************************
  * Function         button_interrupt_cb
  *
  * @brief           Button callback
@@ -839,20 +764,22 @@ void temp_timer_callback(uint32_t arg)
  * @param[in] port_pin       : pin number on which interrupt was received.
  *
  * @return                   : None
- */
-void button_interrupt_cb(void* user_data, uint8_t port_pin)
+ *******************************************************************************/
+void app_button_interrupt_cb(void* user_data, uint8_t port_pin)
 {
     wiced_result_t result = WICED_BT_ERROR;
     uint16_t written_byte = 0u;
 
-    if(0 == sensor_hub_hostinfo.connection_id)
+    if(0 == ble_server_hostinfo.connection_id)
     {
-        /* Set the advertising params and make the device discoverable */
-        sensor_hub_set_advertisement_data();
+        app_set_status_led(1u, PWM_FREQ_IN_HZ, PWM_DUTY_CYCLE);
+
+        /* Config the advertising params and make the device discoverable */
+        ble_app_adv_config();
 
         result =  wiced_bt_start_advertisements(BTM_BLE_ADVERT_UNDIRECTED_HIGH,
                                                          0u, NULL);
-        WICED_BT_TRACE("wiced_bt_start_advertisements %d\r\n", result);
+        WICED_BT_TRACE("Advertisement started, status:%d\r\n", result);
     }
 
     /* Clear the GPIO interrupt */

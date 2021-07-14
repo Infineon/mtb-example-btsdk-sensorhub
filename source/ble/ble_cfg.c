@@ -1,58 +1,55 @@
-/** app_bt_cfg.c
+/******************************************************************************
+ * File Name: ble_cfg.c
  *
  * Runtime Bluetooth stack configuration parameters
  *
- */
+ *
+*******************************************************************************
+* Copyright 2021, Cypress Semiconductor Corporation (an Infineon company) or
+* an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
+*
+* This software, including source code, documentation and related
+* materials ("Software") is owned by Cypress Semiconductor Corporation
+* or one of its affiliates ("Cypress") and is protected by and subject to
+* worldwide patent protection (United States and foreign),
+* United States copyright laws and international treaty provisions.
+* Therefore, you may use this Software only as provided in the license
+* agreement accompanying the software package from which you
+* obtained this Software ("EULA").
+* If no EULA applies, Cypress hereby grants you a personal, non-exclusive,
+* non-transferable license to copy, modify, and compile the Software
+* source code solely for use in connection with Cypress's
+* integrated circuit products.  Any reproduction, modification, translation,
+* compilation, or representation of this Software except as specified
+* above is prohibited without the express written permission of Cypress.
+*
+* Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
+* EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Cypress
+* reserves the right to make changes to the Software without notice. Cypress
+* does not assume any liability arising out of the application or use of the
+* Software or any product or circuit described in the Software. Cypress does
+* not authorize its products for use in any products where a malfunction or
+* failure of the Cypress product may reasonably be expected to result in
+* significant property damage, injury or death ("High Risk Product"). By
+* including Cypress's product in a High Risk Product, the manufacturer
+* of such system or application assumes all risk of such use and in doing
+* so agrees to indemnify Cypress against all liability.
+******************************************************************************/
  
-/*
- * Copyright 2019, Cypress Semiconductor Corporation or a subsidiary of
- * Cypress Semiconductor Corporation. All Rights Reserved.
- *
- * This software, including source code, documentation and related
- * materials ("Software"), is owned by Cypress Semiconductor Corporation
- * or one of its subsidiaries ("Cypress") and is protected by and subject to
- * worldwide patent protection (United States and foreign),
- * United States copyright laws and international treaty provisions.
- * Therefore, you may use this Software only as provided in the license
- * agreement accompanying the software package from which you
- * obtained this Software ("EULA").
- * If no EULA applies, Cypress hereby grants you a personal, non-exclusive,
- * non-transferable license to copy, modify, and compile the Software
- * source code solely for use in connection with Cypress's
- * integrated circuit products. Any reproduction, modification, translation,
- * compilation, or representation of this Software except as specified
- * above is prohibited without the express written permission of Cypress.
- *
- * Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Cypress
- * reserves the right to make changes to the Software without notice. Cypress
- * does not assume any liability arising out of the application or use of the
- * Software or any product or circuit described in the Software. Cypress does
- * not authorize its products for use in any products where a malfunction or
- * failure of the Cypress product may reasonably be expected to result in
- * significant property damage, injury or death ("High Risk Product"). By
- * including Cypress's product in a High Risk Product, the manufacturer
- * of such system or application assumes all risk of such use and in doing
- * so agrees to indemnify Cypress against all liability.
- */
-
-#include "app_bt_cfg.h"
 #include "wiced_bt_dev.h"
 #include "wiced_bt_ble.h"
 #include "wiced_bt_gatt.h"
+#include "wiced_bt_cfg.h"
 #include "cycfg_gatt_db.h"
+#include "ble_cfg.h"
 
-/* TODO - set your device name */
-uint8_t BT_LOCAL_NAME[] = { 'S', 'e', 'n', 's', ' ', 'H', 'u', 'b', '\0' };
-
-/* TODO - Set your app settings as per use case */
 /*****************************************************************************
- * wiced_bt core stack configuration
+ *               wiced_bt core stack configuration
  ****************************************************************************/
 const wiced_bt_cfg_settings_t wiced_bt_cfg_settings =
 {
-    .device_name                         = (uint8_t*)BT_LOCAL_NAME,                                              /**< Local device name (NULL terminated) */
+    .device_name                         = (uint8_t*)app_gap_device_name,                                              /**< Local device name (NULL terminated) */
     .device_class                        = {0x00, 0x00, 0x00},                                             /**< Local device class */
     .security_requirement_mask           = BTM_SEC_NONE,                                                   /**< Security requirements mask (BTM_SEC_NONE, or combinination of BTM_SEC_IN_AUTHENTICATE, BTM_SEC_OUT_AUTHENTICATE, BTM_SEC_ENCRYPT (see #wiced_bt_sec_level_e)) */
 
@@ -182,7 +179,7 @@ const wiced_bt_cfg_settings_t wiced_bt_cfg_settings =
     /* Interval of  random address refreshing */
     .rpa_refresh_timeout                = WICED_BT_CFG_DEFAULT_RANDOM_ADDRESS_NEVER_CHANGE,             /**< Interval of  random address refreshing - secs */
     /* BLE white list size */
-    .ble_white_list_size                = 0,                                                               /**< Maximum number of white list devices allowed. Cannot be more than 128 */
+    .ble_filter_accept_list_size        = 0,                                                               /**< Maximum number of white list devices allowed. Cannot be more than 128 */
                                                           /**< Maximum number of white list devices allowed. Cannot be more than 128 */
 #ifndef CYW20735B1
     .default_ble_power_level            = 12                                                             /**< Default LE power level, Refer lm_TxPwrTable table for the power range */

@@ -1,51 +1,53 @@
-/** temp_sensor_hw.c
- *
- * Temperature measuremnt implementaion
- *
- */
+/*******************************************************************************
+* File Name:   ncu15wf.c
+*
+* Description: This file shows the implementation of temperature sensing.
+*
+* Related Document: See README.md
+*
+********************************************************************************
+* Copyright 2021, Cypress Semiconductor Corporation (an Infineon company) or
+* an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
+*
+* This software, including source code, documentation and related
+* materials ("Software") is owned by Cypress Semiconductor Corporation
+* or one of its affiliates ("Cypress") and is protected by and subject to
+* worldwide patent protection (United States and foreign),
+* United States copyright laws and international treaty provisions.
+* Therefore, you may use this Software only as provided in the license
+* agreement accompanying the software package from which you
+* obtained this Software ("EULA").
+* If no EULA applies, Cypress hereby grants you a personal, non-exclusive,
+* non-transferable license to copy, modify, and compile the Software
+* source code solely for use in connection with Cypress's
+* integrated circuit products.  Any reproduction, modification, translation,
+* compilation, or representation of this Software except as specified
+* above is prohibited without the express written permission of Cypress.
+*
+* Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
+* EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Cypress
+* reserves the right to make changes to the Software without notice. Cypress
+* does not assume any liability arising out of the application or use of the
+* Software or any product or circuit described in the Software. Cypress does
+* not authorize its products for use in any products where a malfunction or
+* failure of the Cypress product may reasonably be expected to result in
+* significant property damage, injury or death ("High Risk Product"). By
+* including Cypress's product in a High Risk Product, the manufacturer
+* of such system or application assumes all risk of such use and in doing
+* so agrees to indemnify Cypress against all liability.
+*******************************************************************************/
 
-/*
- * Copyright 2020, Cypress Semiconductor Corporation or a subsidiary of
- * Cypress Semiconductor Corporation. All Rights Reserved.
- *
- * This software, including source code, documentation and related
- * materials ("Software"), is owned by Cypress Semiconductor Corporation
- * or one of its subsidiaries ("Cypress") and is protected by and subject to
- * worldwide patent protection (United States and foreign),
- * United States copyright laws and international treaty provisions.
- * Therefore, you may use this Software only as provided in the license
- * agreement accompanying the software package from which you
- * obtained this Software ("EULA").
- * If no EULA applies, Cypress hereby grants you a personal, non-exclusive,
- * non-transferable license to copy, modify, and compile the Software
- * source code solely for use in connection with Cypress's
- * integrated circuit products. Any reproduction, modification, translation,
- * compilation, or representation of this Software except as specified
- * above is prohibited without the express written permission of Cypress.
- *
- * Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Cypress
- * reserves the right to make changes to the Software without notice. Cypress
- * does not assume any liability arising out of the application or use of the
- * Software or any product or circuit described in the Software. Cypress does
- * not authorize its products for use in any products where a malfunction or
- * failure of the Cypress product may reasonably be expected to result in
- * significant property damage, injury or death ("High Risk Product"). By
- * including Cypress's product in a High Risk Product, the manufacturer
- * of such system or application assumes all risk of such use and in doing
- * so agrees to indemnify Cypress against all liability.
- */
-
-#include "temp_sensor_hw.h"
 #include "math.h"
+#include "ncu15wf.h"
 #include "wiced_rtos.h"
-#include "GeneratedSource/cycfg_gatt_db.h"
+#include "wiced_hal_adc.h"
+#include "wiced_bt_trace.h"
 
-/******************************************************************************
+/*******************************************************************************
  *                                Structures
  ******************************************************************************/
-/******************************************************************************
+/*******************************************************************************
  *                                Typedefs
  ******************************************************************************/
 /*
@@ -58,7 +60,7 @@ typedef struct
     uint32_t resistance_ohms;
 } r_t_look_up_table_t;
 
-/******************************************************************************
+/*******************************************************************************
  *                                Constants
  ******************************************************************************/
 
@@ -236,22 +238,22 @@ const r_t_look_up_table_t r_t_centre[] =
 #define TABLE_SIZE sizeof(r_t_centre)/sizeof(r_t_centre[0])
 
 
-/******************************************************************************
+/*******************************************************************************
 *                             Function prototypes
-******************************************************************************/
+*******************************************************************************/
 static int32_t convert_resistance_to_temp(uint32_t therm_resist);
 static int16_t get_temp_in_celsius(uint32_t vref, uint32_t vadc);
 
 
-/**
- * Function         temperature_read
+/*******************************************************************************
+ * Function         get_temperature()
  *
  * @brief           This function allows the user to get the ADC readings of the
  *                  particular channel that is passed.
  *
  * @return          : None
- */
-int16_t temperature_read()
+ ******************************************************************************/
+int16_t get_temperature()
 {
 
     volatile uint16_t voltage_val_adc_in_mv = 0;
@@ -284,27 +286,7 @@ int16_t temperature_read()
     return temperature;
 }
 
-
-
-/**
- * Function         temp_sensor_update_gatt
- *
- * @brief           This function reads temperature and updates the value in Gatt DB
- *
- * @return          : None
- */
-void temp_sensor_update_gatt()
-{
-    int16_t temp_val = 0;
-
-    temp_val = (uint16_t) temperature_read();
-
-    app_sensor_hub_temp_sensor_notify[0] = ABS(temp_val/100) & 0xFF;
-    app_sensor_hub_temp_sensor_notify[1] = ABS(temp_val%100) & 0xFF;
-}
-
-
-/**
+/*******************************************************************************
  * Function         get_temp_in_celsius
  *
  * @brief           This function takes in ADC output from VDDIO and voltage
@@ -316,7 +298,7 @@ void temp_sensor_update_gatt()
  *
  * @return          : Temperature in celsius multiplied by 100. This to provide
  *                    two fractional positions of resolution.
- */
+ ******************************************************************************/
 static int16_t get_temp_in_celsius(uint32_t vref, uint32_t vadc)
 {
     volatile int16_t temp_in_celsius = 0;
@@ -341,7 +323,7 @@ static int16_t get_temp_in_celsius(uint32_t vref, uint32_t vadc)
  @return Temperature in celsius * 100
 */
 
-/**
+/*******************************************************************************
  * Function         convert_resistance_to_temp
  *
  * @brief           This function calculates temperature using R Vs T look-up table.
@@ -352,7 +334,7 @@ static int16_t get_temp_in_celsius(uint32_t vref, uint32_t vadc)
  * @param[in] therm_resist  : Resistance of thermistor in ohms
  *
  * @return          : Temperature in celsius.
- */
+ ******************************************************************************/
 
 int32_t convert_resistance_to_temp(uint32_t therm_resist)
 {
